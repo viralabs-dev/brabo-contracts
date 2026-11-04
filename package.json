@@ -1,0 +1,12 @@
+{
+  "name": "brabo-contracts",
+  "version": "1.0.0",
+  "license": "MIT",
+  "private": true,
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "lint": "pnpm -r --if-present lint"
+  }
+}
