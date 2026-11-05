@@ -405,183 +405,162 @@ proposto }` since ADR 0085 with no mechanism behind it — and
 > **Revised by [ADR 0185](../adr/0185-estou-pronto-fecha-os-dois-gates.md)
 > ([RN-657](api.md#rn-657)), by decision of the owner on 30/09.** The click stopped being
 > SEPARATE: "I'm ready — the need is validated" records
-> `product_brief` produzido DEPOIS do clique (`productBriefId: null`). O botão
-> "Confirmar necessidade validada" saiu da tela. O que desta regra continua
-> valendo: quem valida é sempre uma PESSOA, nunca o Criativo; o gate segue
-> `warn`. `POST .../agents/criativo/validate-necessity` continua na api, sem
-> consumidor na tela — é o caminho de uma sessão cujo "Estou pronto" é
-> anterior ao ADR 0185. O texto abaixo é o desenho do ADR 0095, mantido como
-> histórico.
+> `readiness.confirmed` and `necessity.validated` in the same POST, with the> `product_brief` produced AFTER the click (`productBriefId: null`). The button
+> "Confirm validated need" left the screen. What still holds from this rule:
+> whoever validates is always a PERSON, never the Criativo; the gate remains
+> `warn`. `POST .../agents/criativo/validate-necessity` stays in the api, with no
+> consumer on the screen — it is the path for a session whose "I'm ready" is
+> earlier than ADR 0185. The text below is the design of ADR 0095, kept as
+> history.
 
-`SessionPage.tsx` ganha um terceiro botão de confirmação, no MESMO padrão
-interacional de "Estou pronto para produzir" (RN-142) e "Confirmar
-arquitetura pronta" ([RN-160](web.md#rn-160)): "Confirmar necessidade validada"
-(`handleValidateNecessity`) chama `POST
-.../agents/criativo/validate-necessity`, que grava `necessity.validated`
-com `payload.productBriefId` apontando para o `artifact.product_brief`
-mais recente da sessão.
+`SessionPage.tsx` gains a third confirmation button, in the SAME interaction pattern as "I'm ready to produce" (RN-142) and "Confirm architecture ready" ([RN-160](web.md#rn-160)): "Confirm validated need"
+(`handleValidateNecessity`) calls `POST
+.../agents/criativo/validate-necessity`, which records `necessity.validated`
+with `payload.productBriefId` pointing to the most recent `artifact.product_brief`
+of the session.
 
-O botão só habilita DEPOIS que `confirm_readiness` já consolidou o
+The button only enables AFTER `confirm_readiness` has already consolidated the
 `product_brief` (`hasProductBrief`, `events.some(e => e.type ===
-'artifact.product_brief')`) — não faz sentido "validar" um resumo
-executivo que ainda não foi produzido, e é essa a leitura mais
-consistente com `packages/contracts/fluxo.yml`: `necessidade-validada` é gate de SAÍDA
-do Criativo, o momento em que o trabalho dele já entregou um artefato
-concreto. `ValidateNecessityUseCase` revalida a mesma pré-condição no
+'artifact.product_brief')`) — it makes no sense to "validate" an executive summary that has not been produced yet, and that is the reading most
+consistent with `packages/contracts/fluxo.yml`: `necessidade-validada` is an EXIT gate of
+the Criativo, the moment when its work has already delivered a concrete artifact. `ValidateNecessityUseCase` re-checks the same precondition on the
 BACKEND (`SessionEventRepository.listByTypeInSession(sessionId,
-'artifact.product_brief')`, pega o último por `seq`) — a UI desabilitada
-sozinha não bastaria, mesma lição da [RN-404](api.md#rn-404).
+'artifact.product_brief')`, takes the last one by `seq`) — the disabled UI alone would not suffice, same lesson as [RN-404](api.md#rn-404).
 
-Diferente de `OfferInfraHandoffUseCase` (RN-160), esta confirmação NÃO
-sinaliza o engine: o handoff Criativo→PO já aconteceu dentro do próprio
-`confirm_readiness`
-(`CriativoServer.executar_confirm_readiness/1`), então não há agente
-nenhum esperando por este evento — ele é só o registro de que um humano
-validou o MÉRITO do que já foi entregue. `ValidateNecessityUseCase` não
-recebe `ApiToEngineClient` no construtor.
+Unlike `OfferInfraHandoffUseCase` (RN-160), this confirmation does NOT signal the engine: the Criativo→PO handoff already happened inside `confirm_readiness` itself
+(`CriativoServer.executar_confirm_readiness/1`), so there is no agent
+waiting for this event — it is only the record that a human validated the MERIT of what was already delivered. `ValidateNecessityUseCase` does not
+receive `ApiToEngineClient` in its constructor.
 
-`apps/api/config/gates.yml` ganha o gate `necessidade-validada`: `status: active`,
-`aprovacao_humana: true` (é literalmente um clique humano),
-`verificacao: script`, mas `severidade: warn` — nada no produto hoje
-CONSULTA a passagem deste gate antes de deixar o PO seguir (diferente de
-`story-promovida`/`plano-de-adocao`, que são `block` porque uma trava
-real de código os impede de serem pulados). `packages/contracts/fluxo.yml` (papel
-`criativo`) passa `status: proposto` → `status: ativo`.
+`apps/api/config/gates.yml` gains the gate `necessidade-validada`: `status: active`,
+`aprovacao_humana: true` (it is literally a human click),
+`verificacao: script`, but `severidade: warn` — nothing in the product today
+CONSULTS the passing of this gate before letting the PO proceed (unlike `story-promovida`/`plano-de-adocao`, which are `block` because a real code lock
+prevents them from being skipped). `packages/contracts/fluxo.yml` (role
+`criativo`) changes `status: proposto` → `status: ativo`.
 
-- **Onde:** `apps/api/src/application/use-cases/agents/validate-necessity.use-case.ts`;
+- **Where:** `apps/api/src/application/use-cases/agents/validate-necessity.use-case.ts`;
   `apps/api/src/interfaces/http/agents/agents.controller.ts`
   (`validateNecessityHandoff`); `apps/web/src/routes/SessionPage.tsx`
   (`hasProductBrief`, `necessidadeJaValidada`, `handleValidateNecessity`)
-- **Teste:** `apps/api/test/application/use-cases/agents/validate-necessity.use-case.spec.ts`
-  — sem `product_brief`, recusa ANTES de gravar qualquer evento; com um ou
-  mais, grava referenciando o MAIS RECENTE;
-  `apps/web/src/routes/SessionPage.validar-necessidade.test.tsx` — botão
-  desabilitado sem `product_brief`, habilitado com ele, some depois de
+- **Test:** `apps/api/test/application/use-cases/agents/validate-necessity.use-case.spec.ts`
+  — without `product_brief`, refuses BEFORE recording any event; with one or
+  more, records referencing the MOST RECENT one;
+  `apps/web/src/routes/SessionPage.validar-necessidade.test.tsx` — button
+  disabled without `product_brief`, enabled with it, disappears after
   `necessity.validated`
 - **ADR:** [0095](../adr/0095-gate-necessidade-validada.md)
 
 ---
 
-### RN-407 — O PO lê o funil de entrega e DORA parcial, terceira leitura escopada ao projeto {#rn-407}
+### RN-407 — The PO reads the delivery funnel and partial DORA, a third read scoped to the project {#rn-407}
 
-O PO ganhou uma TERCEIRA ferramenta de leitura — `listar_metricas_de_produto`
-(`:direct`, sem parâmetro nenhum) — servida por
-`GET /internal/projects/:projectId/product-metrics`, mesmo desenho das duas
-irmãs da [RN-164](engine.md#rn-164): escopo fechado no projeto, sem termo de busca,
-sem paginação.
+The PO gained a THIRD read tool — `listar_metricas_de_produto`
+(`:direct`, with no parameter at all) — served by
+`GET /internal/projects/:projectId/product-metrics`, same design as the two
+siblings of [RN-164](engine.md#rn-164): closed scope in the project, no search term,
+no pagination.
 
-`packages/contracts/fluxo.yml` (papel `po`, entrada `metricas-de-produto`) declarava
-`status: lacuna` desde o [ADR 0089](../adr/0089-analytics-e-delivery-metricas-como-relatorio.md),
-que já tinha entregue o DADO — o script `pnpm --filter api analise:funil`
-mede o funil real sessão → commit → PR → merge, o lead time real e a
-deployment frequency real a partir de `proposed_actions`. O que faltava era
-só o MECANISMO: o PO nunca tinha como reler esse relatório dentro do turno.
-Fecha o item B4 da auditoria `fluxo.yml` × código
+`packages/contracts/fluxo.yml` (role `po`, input `metricas-de-produto`) declared
+`status: lacuna` since [ADR 0089](../adr/0089-analytics-e-delivery-metricas-como-relatorio.md),
+which had already delivered the DATA — the script `pnpm --filter api analise:funil`
+measures the real funnel session → commit → PR → merge, the real lead time and the
+real deployment frequency from `proposed_actions`. What was missing was
+only the MECHANISM: the PO never had a way to reread that report within the turn.
+Closes item B4 of the `fluxo.yml` × code audit
 ([docs/explanation/auditoria-fluxo-vs-codigo.md](../explanation/auditoria-fluxo-vs-codigo.md)) —
-a ÚLTIMA pendência da tabela "Backlog do modelo de time"
-(docs/explanation/backlog.md), que fica vazia depois desta.
+the LAST pending item in the "Team model backlog" table
+(docs/explanation/backlog.md), which becomes empty after this one.
 
-O CÁLCULO é o MESMO do script, nunca duplicado: as funções puras
+The CALCULATION is the SAME as in the script, never duplicated: the pure functions
 (`calcularFunil`/`calcularLeadTimes`/`leadTimeMedioMs`/
-`deploymentFrequencyPorDia`) e a query que monta `AcaoGit[]`
-(`buscarAcoesGitDoFunil`) foram extraídas de `apps/api/scripts/analise-funil.ts`
-para `apps/api/src/application/services/funil-metrics.ts` — um caso de uso em
-`src/` não pode importar de `scripts/`, e o script passou a REEXPORTAR dali
-em vez de definir localmente, sem mudar assinatura nem comportamento (o
-teste de regressão do script continua verde sem ser tocado).
+`deploymentFrequencyPorDia`) and the query that builds `AcaoGit[]`
+(`buscarAcoesGitDoFunil`) were extracted from `apps/api/scripts/analise-funil.ts`
+to `apps/api/src/application/services/funil-metrics.ts` — a use case in
+`src/` cannot import from `scripts/`, and the script now RE-EXPORTS from there
+instead of defining locally, without changing signature or behavior (the script's
+regression test stays green without being touched).
 
-O corpo JSON que a rota devolve **não tem campo nenhum** para as três
-ausências permanentes que o script já declarava em texto ("Não medido, de
-propósito": funil de produto completo ideação → commit, evidência de adoção
-por feature, MTTR/change failure rate) — o shape do relatório nunca reservou
-espaço para elas. A ferramenta do PO cita as três pelo NOME no TEXTO que
-devolve ao modelo, sempre, e não só quando o número dá zero: sem essa
-seção o PO leria só os números do funil e concluiria por omissão que não há
-lacuna nenhuma.
+The JSON body that the route returns **has no field at all** for the three permanent absences that the script already declared in text ("Not measured, on purpose": complete product funnel ideation → commit, evidence of adoption
+per feature, MTTR/change failure rate) — the report shape never reserved room for them. The PO's tool cites the three by NAME in the TEXT it returns to the model, always, and not only when the number is zero: without that section the PO would read only the funnel numbers and conclude by omission that there is no gap at all.
 
-- **Onde:** `apps/api/src/application/services/funil-metrics.ts`;
-  `apps/api/scripts/analise-funil.ts` (reexporta);
+- **Where:** `apps/api/src/application/services/funil-metrics.ts`;
+  `apps/api/scripts/analise-funil.ts` (re-exports);
   `apps/api/src/application/use-cases/backlog/list-product-metrics.use-case.ts`;
   `apps/api/src/interfaces/http/internal/internal-projects.controller.ts`;
   `apps/api/src/interfaces/http/internal/dto/product-metrics.response.dto.ts`;
   `apps/engine/lib/engine/harness/tools/listar_metricas_de_produto.ex`;
   `apps/engine/lib/engine/agents/po_server.ex`;
   `apps/engine/lib/engine/sessions/engine_api_client.ex`
-- **Teste:** `apps/api/test/application/use-cases/backlog/list-product-metrics.use-case.spec.ts`;
-  `apps/api/test/scripts/analise-funil.spec.ts` (regressão — continua
-  importando de `scripts/analise-funil.ts`, sem alteração);
+- **Test:** `apps/api/test/application/use-cases/backlog/list-product-metrics.use-case.spec.ts`;
+  `apps/api/test/scripts/analise-funil.spec.ts` (regression — keeps
+  importing from `scripts/analise-funil.ts`, unchanged);
   `apps/engine/test/engine/harness/tools/listar_metricas_de_produto_test.exs`;
   `apps/engine/test/engine/agents/po_server_test.exs`
-- **Origem:** mesmo padrão da [RN-164](engine.md#rn-164) (leitura de agente escopada
-  ao projeto, sem efeito externo, sem `proposed_action`); o dado é do
-  [ADR 0089](../adr/0089-analytics-e-delivery-metricas-como-relatorio.md) — esta RN só
-  fecha o mecanismo de leitura que faltava.
+- **Origin:** same pattern as [RN-164](engine.md#rn-164) (agent read scoped
+  to the project, no external effect, no `proposed_action`); the data is from
+  [ADR 0089](../adr/0089-analytics-e-delivery-metricas-como-relatorio.md) — this RN only
+  closes the read mechanism that was missing.
+## The repository is born when the handoff to the Architect is accepted, and execution does not start without it (RN-582)
 
-## O repositório nasce no aceite do handoff ao Arquiteto, e a execução não começa sem ele (RN-582)
+### RN-605 — The image pull is a NAMED step of `start`, under the control ceiling, and the overflow says that a large image does not come up {#rn-605}
 
-### RN-605 — O pull de imagem é um passo NOMEADO do `start`, sob o teto de controle, e o estouro diz que imagem grande não sobe {#rn-605}
+The `start` of the Docker port did not pull: the `docker run` did it, internally,
+under the `TIMEOUT_DE_CONTROLE_MS` (30 s). Reproduced in AT-234 with a double of the
+daemon (image missing, 45 s pull, without sleeping and without network): the overflow came out
+as `ComandoDeDockerFalhouError` — "`docker run …` ended with code -1:
+(no error output)" —, became a 502 with `origem: null` in the broker and reached the api
+without a name. And killing the CLI CANCELS the pull (measured on Docker 29.8.0, containerd):
+the image remained missing for the next 60 s, so the phrase "the pull can
+continue in the daemon" did not hold.
 
-O `start` da porta de Docker não fazia pull: o `docker run` fazia, por dentro,
-sob o `TIMEOUT_DE_CONTROLE_MS` (30 s). Reproduzido na AT-234 com um duplo do
-daemon (imagem ausente, pull de 45 s, sem dormir e sem rede): o estouro saía
-como `ComandoDeDockerFalhouError` — "`docker run …` terminou com código -1:
-(sem saída de erro)" —, virava 502 com `origem: null` no broker e chegava à api
-sem nome. E matar o CLI CANCELA o pull (medido no Docker 29.8.0, containerd):
-a imagem continuou ausente nos 60 s seguintes, então a frase "o pull pode
-seguir no daemon" não valia.
+Of the four measured exits (own ceiling of ~300 s, asynchronous `start`, early pull at the image decision, just give it a name), the maintainer decided on **D — just
+give it a name** (2026-09-27). The rule:
 
-Das quatro saídas medidas (teto próprio de ~300 s, `start` assíncrono, pull
-antecipado na decisão de imagem, só dar nome), o mantenedor decidiu a **D —
-só dar nome** (2026-09-27). A regra:
+1. **The pull is explicit.** Before the `run`, `image inspect`; an image that is present
+   is not downloaded again (the same `--pull missing` of the `run`). If missing, `docker
+   pull` under the SAME control ceiling of 30 s — no larger ceiling.
+2. **The overflow has a name.** `PullExcedeuTetoError`, origin `infra`, with the
+   image, the ceiling and the whole consequence: the pull was cancelled, the image
+   remains missing, a large image does not come up by this path, and the fix is to
+   download it earlier on the host. Before asserting that, the adapter checks the daemon
+   (`docker version`): a daemon that is down remains `DockerIndisponivelError`.
+   A pull that fails for another reason follows the usual path
+   (`ComandoDeDockerFalhouError`, no origin, ADR 0128).
+3. **The name crosses over.** The broker responds 504 with `origem: 'infra'`, and the api
+   passes it on in `BrokerRecusouError` — `origem` filled, never `null`. In
+   `runner` mode the same adapter runs on the user's machine and the message
+   arrives in `container_start_result`.
+4. **The ceilings of whoever waits for `start` count the whole worst case**: the two `ps` of `resolver`, `image inspect`, `pull`, `run` and the diagnostic `docker version` — six control calls (`CHAMADAS_DE_CONTROLE_NO_START`).
+   The api waits 10 + 6 × 30 + 5 = **195 s** (`TETO_DE_MUTACAO_MS`); the engine,
+   in the `RunnerRouter`, 6 × 30 + 5 = **185 s** in `start` and 4 × 30 + 5 =
+   **125 s** in `stop`/`remove` (they were 60 s, less than `resolver` plus the
+   operation).
+5. **The engine's `propose_action` waits for the execution that the api does inside
+   it.** `container_start`, `container_start_via_runner` and `container_stop`
+   auto-approved are EXECUTED in the same request
+   (`ProposeActionUseCase`), and the call fell into Req's default of 15 s — a long `start`
+   came back as a transport timeout even without a pull. Now it takes a `receive_timeout` of **225 s** (the api's ceiling + 30 s), mirrored in the api
+   as `TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`; the tests on both sides check broker < api < engine and runner < engine. `container_remove`
+   stays out: it is never born auto-approved.
 
-1. **O pull é explícito.** Antes do `run`, `image inspect`; imagem presente
-   não é baixada de novo (o mesmo `--pull missing` do `run`). Ausente, `docker
-   pull` sob o MESMO teto de controle de 30 s — nenhum teto maior.
-2. **O estouro tem nome.** `PullExcedeuTetoError`, origem `infra`, com a
-   imagem, o teto e a consequência inteira: o pull foi cancelado, a imagem
-   continua ausente, imagem grande não sobe por este caminho, e o conserto é
-   baixá-la antes no host. Antes de afirmar isso, o adaptador confere o daemon
-   (`docker version`): daemon fora continua sendo `DockerIndisponivelError`.
-   Pull que falha por outro motivo segue o caminho de sempre
-   (`ComandoDeDockerFalhouError`, sem origem, ADR 0128).
-3. **O nome atravessa.** O broker responde 504 com `origem: 'infra'`, e a api
-   o repassa em `BrokerRecusouError` — `origem` preenchida, nunca `null`. No
-   modo `runner` o mesmo adaptador roda na máquina do usuário e a mensagem
-   chega no `container_start_result`.
-4. **Os tetos de quem espera o `start` contam o pior caso inteiro**: os dois
-   `ps` de `resolver`, `image inspect`, `pull`, `run` e o `docker version` de
-   diagnóstico — seis chamadas de controle (`CHAMADAS_DE_CONTROLE_NO_START`).
-   A api espera 10 + 6 × 30 + 5 = **195 s** (`TETO_DE_MUTACAO_MS`); o engine,
-   no `RunnerRouter`, 6 × 30 + 5 = **185 s** no `start` e 4 × 30 + 5 =
-   **125 s** no `stop`/`remove` (eram 60 s, menos que o `resolver` mais a
-   operação).
-5. **O `propose_action` do engine espera a execução que a api faz dentro
-   dele.** `container_start`, `container_start_via_runner` e `container_stop`
-   auto-aprovados são EXECUTADOS na mesma requisição
-   (`ProposeActionUseCase`), e a chamada caía no default de 15 s do Req — um
-   `start` longo voltava como timeout de transporte mesmo sem pull. Agora ela
-   leva `receive_timeout` de **225 s** (o teto da api + 30 s), espelhado na api
-   como `TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`; os testes dos dois
-   lados conferem broker < api < engine e runner < engine. `container_remove`
-   fica fora: nunca nasce auto-aprovado.
+No new dependency ([ADR 0128](../adr/0128-porta-de-docker-e-a-prova-de-empacotamento.md)), no field
+that the caller writes ([ADR 0130](../adr/0130-broker-de-container.md)): the image
+keeps coming from the Architect's decision, and `pull` is not a new operation of the broker
+— it is a step of `start`.
 
-Nenhuma dependência nova ([ADR 0128](../adr/0128-porta-de-docker-e-a-prova-de-empacotamento.md)), nenhum campo
-que o chamador escreva ([ADR 0130](../adr/0130-broker-de-container.md)): a imagem
-continua vindo da decisão do Arquiteto, e `pull` não é operação nova do broker
-— é um passo do `start`.
+**Declared, not closed:**
 
-**Declarado, não fechado:**
+- **A large image does not come up on the first attempt**, neither through the broker nor
+  through the runner — decision D of the maintainer. The outcome is now named; the fix is to
+  download the image earlier on the host.
+- **In the worst failure case, the approval stays blocked for up to ~195 s**:
+  `ExecuteContainerStartUseCase` runs inside the approval `POST`, and neither the
+  web nor the HTTP server has a ceiling of its own.
+- It was not measured whether the layers downloaded before the cancellation are
+  reused in the next attempt.
 
-- **Imagem grande não sobe na primeira tentativa**, pelo broker nem pelo
-  runner — decisão D do mantenedor. O desfecho agora é nomeado; o conserto é
-  baixar a imagem antes no host.
-- **No pior caso de falha, a aprovação fica presa por até ~195 s**:
-  `ExecuteContainerStartUseCase` roda dentro do `POST` de aprovação, e nem a
-  web nem o servidor HTTP têm teto próprio.
-- Não foi medido se as camadas baixadas antes do cancelamento são
-  reaproveitadas na tentativa seguinte.
-
-- **Código:**
+- **Code:**
   `packages/docker-port/src/docker-cli.ts:202` (`PullExcedeuTetoError`),
   `:586` (`garantirImagem`), `:125` (`CHAMADAS_DE_CONTROLE_NO_START`),
   `:116` (`TIMEOUT_DE_CONTROLE_MS`);
@@ -594,37 +573,36 @@ continua vindo da decisão do Arquiteto, e `pull` não é operação nova do bro
   `apps/engine/lib/engine/sessions/engine_api_client.ex:1959` (`opcoes_do_propose_action`),
   `:1649` (`@teto_do_propose_action_de_container_ms`);
   `apps/engine/lib/engine/runners/runner_router.ex:52` (`@timeout_do_start_ms`)
-- **Teste:** `packages/docker-port/src/docker-cli.spec.ts:425` (describe da
-  reprodução, "(AT-234)": o pull de 45 s termina NOMEADO, `:457`; daemon fora
-  continua daemon fora, `:481`; o pull que cabe sobe, `:493`; imagem presente
-  não é baixada, `:508`; as seis chamadas, `:520`);
-  `apps/broker/src/servidor.spec.ts:317` (504 com origem `infra`);
+- **Test:** `packages/docker-port/src/docker-cli.spec.ts:425` (describe of the
+  reproduction, "(AT-234)": the 45 s pull ends NAMED, `:457`; a daemon that is down
+  remains a daemon that is down, `:481`; the pull that fits comes up, `:493`; an image that is present
+  is not downloaded, `:508`; the six calls, `:520`);
+  `apps/broker/src/servidor.spec.ts:317` (504 with origin `infra`);
   `apps/api/test/infrastructure/http-clients/container-broker.client.spec.ts:144`
-  (chega com `origem`), `:362` e `:377` (a conta e a ordem);
-  `apps/runner/src/index-handlers.spec.ts:420` (o nome no
+  (arrives with `origem`), `:362` and `:377` (the count and the order);
+  `apps/runner/src/index-handlers.spec.ts:420` (the name in the
   `container_start_result`);
   `apps/engine/test/engine/sessions/engine_api_client_propose_action_test.exs:67`
-  (HTTP real: a api que demora 16 s é esperada), `:82` e `:95` (as ações e a
-  ordem, lendo o espelho da api);
+  (real HTTP: the api that takes 16 s is expected), `:82` and `:95` (the actions and the
+  order, reading the api's mirror);
   `apps/engine/test/engine/runners/runner_router_test.exs:183`
-- **Origem:** AT-234
+- **Origin:** AT-234
 
-## Decidir no chat, onde o dono está (RN-626)
+## Decide in the chat, where the owner is (RN-626)
 
-### RN-627 — O container do projeto roda com o dono da pasta, medido pela api {#rn-627}
+### RN-627 — The project container runs with the owner of the folder, measured by the api {#rn-627}
 
-Sob `--cap-drop ALL` o root do container não tem `CAP_DAC_OVERRIDE` e não
-escreve na pasta do projeto, que é do uid do operador: `npm install` dava
-`EACCES` para todo dev agent (AT-247, [ADR 0180](../adr/0180-container-com-o-dono-da-pasta.md)).
+Under `--cap-drop ALL` the container's root does not have `CAP_DAC_OVERRIDE` and does not
+write to the project folder, which belongs to the operator's uid: `npm install` gave
+`EACCES` to every dev agent (AT-247, [ADR 0180](../adr/0180-container-com-o-dono-da-pasta.md)).
 
-1. **A api mede, o broker compõe.** `container-spec` devolve `usuarioDaPasta`
-   (`stat` da pasta dos modos `container`/`mounted`; `null` se a pasta não é
-   alcançada, se o dono é root ou se o projeto é `runner`). O broker o copia
-   para `spec.usuario` e o adaptador emite `--user uid:gid` e `--env HOME=/tmp`.
-2. **Nunca vem de quem pede.** `start` não tem corpo e o corpo de `exec` ignora
-   campo extra; `exec` herda o usuário do container.
-3. **O broker revalida.** Inteiros em 1..2^31-1; `0` é recusado nomeando
-   `usuario.uid`/`usuario.gid` (root é o ausente, "como sempre").
+1. **The api measures, the broker composes.** `container-spec` returns `usuarioDaPasta`
+   (`stat` of the folder in the `container`/`mounted` modes; `null` if the folder is not reachable, if the owner is root or if the project is `runner`). The broker copies it
+   to `spec.usuario` and the adapter emits `--user uid:gid` and `--env HOME=/tmp`.
+2. **It never comes from whoever asks.** `start` has no body and the `exec` body ignores
+   extra fields; `exec` inherits the container's user.
+3. **The broker re-validates.** Integers in 1..2^31-1; `0` is refused, naming
+   `usuario.uid`/`usuario.gid` (root is the absent one, "as always").
 4. **Não afrouxa contenção**: `--cap-drop ALL`, um bind, rede de dois valores
    e cinco operações continuam. Container já criado só muda ao ser recriado.
 
