@@ -10,6 +10,7 @@
 ## Unreleased
 
 - `packages/docs` (RNs de contratos e traduções, AT-693) passa a morar aqui, com o histórico da fonte; o `brabo` o busca daqui ao montar o layout.
+- `packages/docs` fica só em inglês (AT-745): a fonte das RNs é inglês com `idioma_original: en`, e `docs/i18n/` (en, ru, zh-Hans) sai.
 
 ## v1.0.0
 
