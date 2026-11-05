@@ -213,226 +213,198 @@ calls per opening of the dropdown.
 ### RN-341 — The QA strategy is the second MOMENT of the qa-lead, and it never suspends {#rn-341}
 
 `packages/contracts/fluxo.yml` declared the role `qa-estrategia` as `proposto`, with the
-qa-lead em segundo MOMENTO, não necessariamente agente novo — a separação é
-de entregável". O [ADR 0090](../adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
-constrói exatamente isso: `Engine.Gates.QaEstrategiaAgent` é módulo SEM
-ESTADO (não é `GenServer`), acionado por `Engine.Gates.QaLeadServer.run_design/3`
-— um ponto de entrada NOVO e ADITIVO no MESMO processo `qa-lead`, sem tocar
-`run/2` (o caminho de sempre, revisão de PR, amarrado a
+separation criterion written in the record itself: "can be the sameqa-lead in a second MOMENT, not necessarily a new agent — the separation is
+of deliverable". The [ADR 0090](../adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
+builds exactly that: `Engine.Gates.QaEstrategiaAgent` is a STATELESS module (it is not a `GenServer`), triggered by `Engine.Gates.QaLeadServer.run_design/3`
+— a NEW and ADDITIVE entry point in the SAME `qa-lead` process, without touching
+`run/2` (the usual path, PR review, tied to
 `DevAgentState.find_by_task_id`).
 
-**O contexto é LEVE, e é aí que a separação de entregável aparece.**
-`Engine.Gates.QaEstrategiaContext.fetch/3` busca SÓ story (de
-`EngineApiClient.list_backlog/1`, a árvore que o PO já lê — [RN-164](engine.md#rn-164))
-e `module_map` vigente (de `EngineApiClient.get_infra_context/2`, o MESMO
-`GetInfraContextUseCase` que o Infra Lead consome, aqui só pelo campo
-`moduleMap`) — SEM `dev_state`, SEM `worktree_path`: o gate `implementavel`
-roda PRE-DEV, antes de existir dev agent, worktree ou `task_id`. Nenhuma
-rota nova na api — as duas funções já existiam.
+**The context is LIGHT, and that is where the separation of deliverable shows.**
+`Engine.Gates.QaEstrategiaContext.fetch/3` fetches ONLY the story (from
+`EngineApiClient.list_backlog/1`, the tree the PO already reads — [RN-164](engine.md#rn-164))
+and the current `module_map` (from `EngineApiClient.get_infra_context/2`, the SAME
+`GetInfraContextUseCase` that the Infra Lead consumes, here only through the
+`moduleMap` field) — with NO `dev_state`, NO `worktree_path`: the `implementavel` gate
+runs PRE-DEV, before any dev agent, worktree or `task_id` exists. No new
+route in the api — both functions already existed.
 
-**Nunca suspende.** O registro de ferramentas (`ReadFile`, `SearchWorkspace`,
-`EmitPlanoDeTeste`) não inclui `terminal` nem `write_file` — as DUAS únicas
-tools que `Engine.Harness.Hooks.ActionPipeline` intercepta para criar
-`proposed_action`. Sem chamada nenhuma passando pelo pipeline de ações, o
-`ToolLoop` deste agente nunca produz `:pending`, e `run_design/3` roda
-SÍNCRONO dentro do próprio `handle_cast` — sem mecanismo de
-suspensão/retomada, ao contrário do resto da área de QA.
+**It never suspends.** The tool registry (`ReadFile`, `SearchWorkspace`,
+`EmitPlanoDeTeste`) does not include `terminal` or `write_file` — the TWO only
+tools that `Engine.Harness.Hooks.ActionPipeline` intercepts to create
+`proposed_action`. With no call at all going through the action pipeline, the
+`ToolLoop` of this agent never produces `:pending`, and `run_design/3` runs
+SYNCHRONOUSLY inside the `handle_cast` itself — with no suspension/resumption
+mechanism, unlike the rest of the QA area.
 
-**O teto de iterações fica em 8 (conversacional), não 60 (gate) — de
-propósito, não lacuna.** Este agente roda SEM `token_budget_micros` — não há
-task nem budget de task ainda. O critério da [RN-085](engine.md#rn-085) não é "quem
-trabalha muito": é "o que segura o gasto além do teto de iterações". Sem
-budget por baixo, subir o teto multiplicaria o pior caso sem nada para
-conter — a MESMA razão pela qual `infra-workflows` fica em 8 mesmo usando
-ferramenta. `"qa-estrategia"` NÃO ganhou cláusula própria em
-`Engine.Harness.Iteracoes.tipo/1`: cair no default é a decisão certa.
+**The iteration ceiling stays at 8 (conversational), not 60 (gate) — on purpose, not a gap.** This agent runs WITHOUT `token_budget_micros` — there is no
+task or budget yet. The criterion of [RN-085](engine.md#rn-085) is not "who works a lot":
+it is "what holds the spending beyond the iteration ceiling". With no budget underneath, raising the ceiling would multiply the worst case with nothing to
+contain it — the SAME reason why `infra-workflows` stays at 8 even using tools. `"qa-estrategia"` did NOT get its own clause in
+`Engine.Harness.Iteracoes.tipo/1`: falling into the default is the right decision.
 
-O entregável — `emit_plano_de_teste` (síntese, critérios executáveis
-verificáveis, estratégia de automação GENÉRICA e sem framework — decisão de
-escopo desta frente, na `spec/0` que o modelo lê, não uma validação em
-código) — vira o artefato `artifact.plano_de_teste`
-(`ArtifactEmitter.emit/5`, schema validado, `criteriosExecutaveis` não pode
-ser vazio), no event log da MESMA sessão que chamou `run_design/3` — é lá
-que `assess_implementability` ([RN-340](api.md#rn-340)) o lê depois. Falha
-(limite de iterações, orçamento, modelo que para sem emitir) NUNCA é
-silenciosa: `agent.error` durável com origem, mesma régua da
+The deliverable — `emit_plano_de_teste` (synthesis, verifiable executable criteria,
+GENERIC automation strategy with no framework — a scope decision of this front, in the `spec/0` the model reads, not a validation in
+code) — becomes the artifact `artifact.plano_de_teste`
+(`ArtifactEmitter.emit/5`, validated schema, `criteriosExecutaveis` cannot be
+empty), in the event log of the SAME session that called `run_design/3` — that is where
+`assess_implementability` ([RN-340](api.md#rn-340)) reads it later. Failure (iteration limit, budget, model that stops without emitting) is NEVER
+silent: a durable `agent.error` with its origin, same rule as
 [RN-059](engine.md#rn-059).
 
-**Desde a [RN-674](engine.md#rn-674) (ADR 0192) o MOMENTO mudou.** O segundo momento
-continua sendo do `qa-lead`, sem agente novo, e continua nunca suspendendo;
-mas roda DEPOIS da entrega, no começo do ciclo de `run/2`, com o worktree do
-dev e os arquivos do diff — `run_design/3` e `QaEstrategiaContext` saíram, e
-o artefato ganhou `taskId`. O teto continua 8, agora COM o orçamento da task
-por baixo.
+**Since [RN-674](engine.md#rn-674) (ADR 0192) the MOMENT changed.** The second moment
+is still the `qa-lead`'s, with no new agent, and it still never suspends;
+but it runs AFTER delivery, at the start of the `run/2` cycle, with the dev's worktree and the
+diff files — `run_design/3` and `QaEstrategiaContext` were removed, and the artifact
+gained `taskId`. The ceiling stays 8, now WITH the task's budget underneath.
 
-- **Onde:** `apps/engine/lib/engine/gates/qa_estrategia_agent.ex`,
-  `qa_lead_server.ex` (`run_area/3`, desde a [RN-674](engine.md#rn-674)),
+- **Where:** `apps/engine/lib/engine/gates/qa_estrategia_agent.ex`,
+  `qa_lead_server.ex` (`run_area/3`, since [RN-674](engine.md#rn-674)),
   `tools/emit_plano_de_teste.ex`, `hooks/termination_plano_de_teste.ex`;
   `apps/engine/lib/engine/harness/artifact_schemas.ex` (`plano_de_teste`);
-  `apps/engine/lib/engine/harness/iteracoes.ex` (SEM cláusula nova, ver
-  acima); `packages/contracts/fluxo.yml` (`qa-estrategia`, `status: active`)
-- **Teste:** `apps/engine/test/engine/gates/qa_estrategia_agent_test.exs`,
+  `apps/engine/lib/engine/harness/iteracoes.ex` (NO new clause, see
+  above); `packages/contracts/fluxo.yml` (`qa-estrategia`, `status: active`)
+- **Test:** `apps/engine/test/engine/gates/qa_estrategia_agent_test.exs`,
   `qa_lead_server_test.exs` (describe "plano de teste da entrega (ADR 0192)"), `apps/engine/test/engine/harness/artifact_schemas_test.exs`
   (describe "plano_de_teste"), `iteracoes_test.exs` ("qa-estrategia é
   conversacional DE PROPÓSITO")
-- **Origem:** [ADR 0090](../adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
+- **Origin:** [ADR 0090](../adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
 
 ---
 
-## `secops-runtime` — relatório de abuso sobre `rate_limit_hits` (RN-375..377, ADR 0091)
+## `secops-runtime` — abuse report over `rate_limit_hits` (RN-375..377, ADR 0091)
 
-### RN-377 — A seção "não medido" é permanente, e cita as três lacunas por nome {#rn-377}
+### RN-377 — The "not measured" section is permanent, and it names the three gaps {#rn-377}
 
-`montarRelatorio` sempre inclui `naoMedido`: detecção automática de
-incidente, resposta a incidente e postmortem de segurança. As três dependem
-do mesmo gatilho que `packages/contracts/fluxo.yml` já declarava para `secops-runtime` —
-tráfego de produção real — e nenhuma delas é simulada com incidente de
-exemplo nem número inventado (mesmo princípio dos ADRs 0041/0042/0077: sem o
-dado real, a lacuna fica visível em vez de fingida). A seção só sai da lista
-quando o produto tiver tráfego real para medir contra ela — não é um TODO a
-apagar na próxima limpeza.
+`montarRelatorio` always includes `naoMedido`: automatic incident detection, incident response, and security postmortem. All three depend on the same trigger that `packages/contracts/fluxo.yml` already declared for `secops-runtime` —
+real production traffic — and none of them is simulated with an example incident or an invented number
+(same principle as ADRs 0041/0042/0077: without the real data, the gap stays visible instead of being faked). The section only leaves the list
+when the product has real traffic to measure against it — it is not a TODO to erase in the next cleanup.
 
-- **Onde:** `apps/api/scripts/relatorio-seguranca-runtime.ts`,
+- **Where:** `apps/api/scripts/relatorio-seguranca-runtime.ts`,
   `apps/api/package.json` (`relatorio:seguranca-runtime`)
-- **Teste:** `apps/api/test/scripts/relatorio-seguranca-runtime.spec.ts`
+- **Test:** `apps/api/test/scripts/relatorio-seguranca-runtime.spec.ts`
 - **ADR:** [0091](../adr/0091-secops-runtime-relatorio-de-abuso.md)
 
 ---
 
-## `platform` ganha uma primeira entrega: relatório de telemetria sob demanda (RN-385/386, ADR 0092)
+## `platform` gets a first deliverable: on-demand telemetry report (RN-385/386, ADR 0092)
 
-### RN-385 — O papel `platform` nasce como SCRIPT de leitura pontual, sobre as mesmas fontes do `DomainGaugesCollector` {#rn-385}
+### RN-385 — The `platform` role is born as a one-off READ SCRIPT, over the same sources as the `DomainGaugesCollector` {#rn-385}
 
-`packages/contracts/fluxo.yml` descreve `platform` (`camada_plataforma`) como "SRE / Platform
-— dono do loop de retorno", `status: planned`, com ativação sincronizada a
-`DEPLOY_ENABLED` — que não existe. O dono do produto decidiu antecipar a
-metade que já tem dado real por trás: `pnpm --filter api relatorio:telemetria
-[--projeto <uuid>] [--json]` lê, sob demanda, as MESMAS perguntas que o
-`DomainGaugesCollector` já responde a cada `METRICS_GAUGE_INTERVAL_MS` para o
-scrape do Prometheus — sessões ativas/closing por projeto, tasks bloqueadas
-por projeto, estado do último backup (idade, status, tamanho, sempre GLOBAL,
-nunca por projeto, porque o produto tem um backup só). Não é agente LLM nem
-`GenServer`: é leitura avulsa, sem estado, que termina depois de imprimir.
+`packages/contracts/fluxo.yml` describes `platform` (`camada_plataforma`) as "SRE / Platform
+— owner of the feedback loop", `status: planned`, with activation synchronized to
+`DEPLOY_ENABLED` — which does not exist. The product owner decided to bring forward the
+half that already has real data behind it: `pnpm --filter api relatorio:telemetria
+[--projeto <uuid>] [--json]` reads, on demand, the SAME questions that the
+`DomainGaugesCollector` already answers every `METRICS_GAUGE_INTERVAL_MS` for the
+Prometheus scrape — active/closing sessions per project, blocked tasks
+per project, state of the last backup (age, status, size, always GLOBAL,
+never per project, because the product has only one backup). It is not an LLM agent nor a
+`GenServer`: it is a stateless, one-off read that ends after printing.
 
-As consultas SQL são REPLICADAS, não importadas do coletor — os métodos dele
-(`collectSessions`/`collectBlockedTasks`/`collectBackup`) são privados e
-terminam escrevendo num gauge Prometheus (`this.metrics.*.set(...)`); não há
-uma metade pura de "só a query" para reusar sem acoplar um script avulso ao
-ciclo de vida de um `@Injectable` do NestJS. O script também NÃO é um segundo
-coletor: não registra métrica nenhuma, não roda em `setInterval`.
+The SQL queries are REPLICATED, not imported from the collector — its methods
+(`collectSessions`/`collectBlockedTasks`/`collectBackup`) are private and
+end by writing to a Prometheus gauge (`this.metrics.*.set(...)`); there is no
+pure "query only" half to reuse without coupling a one-off script to the lifecycle of a NestJS `@Injectable`. The script is also NOT a second
+collector: it does not register any metric, and it does not run on `setInterval`.
 
-A saída sempre traz "onde ver mais" (os três dashboards versionados em
-`deploy/k8s/observability/dashboards/*.json`, os alertas em
-`deploy/k8s/observability/alerts/brabo-alerts.yaml`, `docs/runbook.md
-#observabilidade` e `pnpm dev:obs` para observabilidade local) — o script
-LINKA para o que já existe, nunca duplica.
+The output always includes "where to see more" (the three dashboards versioned in
+`deploy/k8s/observability/dashboards/*.json`, the alerts in`deploy/k8s/observability/alerts/brabo-alerts.yaml`, `docs/runbook.md
+#observabilidade` and `pnpm dev:obs` for local observability) — the script
+LINKS to what already exists, and never duplicates it.
 
-- **Onde:** `apps/api/scripts/relatorio-telemetria.ts`; espelha
+- **Where:** `apps/api/scripts/relatorio-telemetria.ts`; mirrors
   `apps/api/src/infrastructure/observability/domain-gauges.collector.ts`
-- **Teste:** `apps/api/test/scripts/relatorio-telemetria.spec.ts` (funções
-  puras — `parseArgs`, `formatarIdade`, `formatarBytes` — mesmo recorte de
-  `medir-execucao.spec.ts`: a parte que fala com o banco é exercitada rodando
-  o script contra um banco real)
+- **Test:** `apps/api/test/scripts/relatorio-telemetria.spec.ts` (pure functions —
+  `parseArgs`, `formatarIdade`, `formatarBytes` — same scope as
+  `medir-execucao.spec.ts`: the part that talks to the database is exercised by running
+  the script against a real database)
 - **ADR:** [0092](../adr/0092-platform-relatorio-de-telemetria-sob-demanda.md)
 
-### RN-386 — O relatório de telemetria declara, sem inventar, o que NÃO mede {#rn-386}
+### RN-386 — The telemetry report declares, without inventing, what it does NOT measure {#rn-386}
 
-O gatilho real do papel `platform` (`DEPLOY_ENABLED`) não existe: não há
-ambiente de produção com tráfego real, não há SLO numérico definido em lugar
-nenhum do produto, e não há postmortem possível sem incidente de verdade.
-`relatorio-telemetria.ts` diz isso na PRÓPRIA saída, numa seção "não medido",
-em vez de fingir cobertura que não tem — a mesma disciplina do ADR 0042 para
-nota de modelo e do ADR 0077 para qualidade de código: sem o dado real, o
-produto DECLARA a lacuna, nunca inventa o número.
+The real trigger of the `platform` role (`DEPLOY_ENABLED`) does not exist: there is no production environment with real traffic, there is no numeric SLO defined anywhere in the product, and there is no possible postmortem without a real incident.
+`relatorio-telemetria.ts` says so in ITS OWN output, in a "not measured" section,
+instead of pretending to have coverage it does not have — the same discipline as ADR 0042 for
+the model note and ADR 0077 for code quality: without the real data, the
+product DECLARES the gap, and never invents the number.
 
-Três lacunas, todas explícitas: **SLO numérico formal** (nenhum está
-definido); **postmortem** (depende de incidente real que não aconteceu); e
-**telemetria de volta ao produto em loop fechado** (o script é leitura
-pontual sob demanda — observar, decidir e agir sozinho é o que tornaria
-`platform` `active` em `packages/contracts/fluxo.yml`, e por isso o `gate_saida: { id:
-operavel, status: planned }` do papel permanece `planned`, intocado por esta
-mudança).
+Three gaps, all explicit: **formal numeric SLO** (none is
+defined); **postmortem** (depends on a real incident that did not happen); and
+**telemetry fed back to the product in a closed loop** (the script is a one-off
+on-demand read — observing, deciding and acting on its own is what would make
+`platform` `active` in `packages/contracts/fluxo.yml`, and that is why the role's
+`gate_saida: { id: operavel, status: planned }` remains `planned`, untouched by this change).
 
-- **Onde:** `apps/api/scripts/relatorio-telemetria.ts` (função `imprimir`,
-  seção "Não medido"); `packages/contracts/fluxo.yml` (`camada_plataforma › platform ›
-  saidas_alvo`, artefato `telemetria-consolidada`, campo `nota`)
-- **Teste:** cobertura indireta — a seção é texto fixo verificado por leitura
-  do arquivo; não há verdade condicional a testar aqui (nada a errar entre
-  "medido" e "não medido" além do texto em si)
+- **Where:** `apps/api/scripts/relatorio-telemetria.ts` (function `imprimir`,
+  "Não medido" section); `packages/contracts/fluxo.yml` (`camada_plataforma › platform ›
+  saidas_alvo`, artifact `telemetria-consolidada`, field `nota`)
+- **Test:** indirect coverage — the section is fixed text verified by reading
+  the file; there is no conditional truth to test here (nothing to get wrong between
+  "measured" and "not measured" beyond the text itself)
 - **ADR:** [0092](../adr/0092-platform-relatorio-de-telemetria-sob-demanda.md)
 
 ---
 
-## Auditoria fluxo.yml × código — Onda 2: RN-160 no backend e delegação Dev Lead → dev (RN-404/405, ADR 0094)
+## Fluxo.yml × code audit — Wave 2: RN-160 on the backend and delegation Dev Lead → dev (RN-404/405, ADR 0094)
 
-### RN-405 — A delegação Dev Lead → dev vira dado em `delegations`, com `parecerArtifactId` redefinido para "o que justificou a decisão" {#rn-405}
+### RN-405 — The Dev Lead → dev delegation becomes data in `delegations`, with `parecerArtifactId` redefined as "what justified the decision" {#rn-405}
 
-O ADR 0053 (FASE 14d) já previa a delegação Dev Lead → `dev-<modulo>` como
-"o mesmo caminho de QA e Infra" (`delegations`, `area = 'dev'`), mas
-declarou isso fora de escopo. `dev_lead_server.ex` nunca gravava a tabela —
-só QA (`qa_lead_server.ex`) e Infra (`infra_lead_server.ex`) gravavam, e os
-dois do lado ENGINE, porque é lá que o subagente produz um PARECER (veredito
-de rodada única) que justifica `parecerArtifactId`.
+ADR 0053 (PHASE 14d) already foresaw the Dev Lead → `dev-<modulo>` delegation as
+"the same path as QA and Infra" (`delegations`, `area = 'dev'`), but
+declared that out of scope. `dev_lead_server.ex` never wrote to the table —
+only QA (`qa_lead_server.ex`) and Infra (`infra_lead_server.ex`) wrote, and both on the ENGINE side, because that is where the subagent produces a PARECER (single-round verdict) that justifies `parecerArtifactId`.
 
-O Dev Lead não tem esse padrão: a ativação de um `dev-<modulo>` acontece do
-lado API, em `AcceptParallelizationUseCase.execute` — chamada tanto pelo
-caminho direto (`RequestParallelizationUseCase`, abaixo do teto de sessão da
-[RN-083](api.md#rn-083)) quanto pelo aprovado (`ExecuteParallelizationUseCase`,
-depois que o usuário aprova a `proposed_action` tipo `parallelize`). A
-gravação entrou DENTRO desse método — cobre os dois caminhos de graça,
-porque os dois já convergem ali —, com `status: 'completed'` REDEFINIDO para
-esta área: significa "a delegação foi EFETIVADA" (o agente subiu), não "o
-subagente terminou e emitiu parecer" como em QA/Infra (decisão registrada no
+The Dev Lead does not have that pattern: the activation of a `dev-<modulo>` happens on the
+API side, in `AcceptParallelizationUseCase.execute` — called both by the direct path
+(`RequestParallelizationUseCase`, below the session ceiling of
+[RN-083](api.md#rn-083)) and by the approved path (`ExecuteParallelizationUseCase`,
+after the user approves the `proposed_action` of type `parallelize`). The recording was put
+INSIDE that method — it covers both paths for free, because both already converge there —,
+with `status: 'completed'` REDEFINED for this area: it means "the delegation was CARRIED OUT" (the agent started),
+not "the subagent finished and issued a parecer" as in QA/Infra (a decision recorded in
 [ADR 0094](../adr/0094-delegacao-dev-lead-vira-dado.md)).
 
-`parecerArtifactId` aponta para o `id` do evento `artifact.module_map` mais
-recente e vigente do projeto — obtido de
+`parecerArtifactId` points to the `id` of the most recent and current `artifact.module_map` event of the project — obtained from
 `SessionEventRepository.listByTypeForProject(projectId, 'artifact.module_map')`
-(método genérico já existente, usado por `computeCoverage` para
-`artifact.business_rule`; nenhuma consulta nova foi escrita, só uma chamada a
-mais dele — o último item da lista é o mais recente, porque a função ordena
-por `createdAt` ASC) — o artefato que justificou a decisão de delegar.
-`area: 'dev'`, `leadAgent: 'dev-lead'`, `subagent` é o id exato do agente
-ativado (`extraDevAgentId(module)`, a MESMA função que constrói o id em todo
-o resto do use case — nenhum formato novo). Sem `artifact.module_map` no
-projeto (não deveria acontecer — é entrada obrigatória do Dev Lead em
-`packages/contracts/fluxo.yml`), a delegação NÃO é gravada com um id inventado: só loga o
-estado inesperado, pela mesma lição da RN-059 (nunca falha silenciosa, mas
-também nunca finge uma justificativa que não existe). E falha de
-`RecordDelegationUseCase.execute` (ex.: banco fora do ar) é capturada e
-logada, nunca propagada — a ativação do dev agent já é sucesso quando a
-tentativa de gravar a delegação acontece, e não pode ser derrubada por uma
-gravação auxiliar.
+(an existing generic method, used by `computeCoverage` for
+`artifact.business_rule`; no new query was written, only one more call to it — the last item in the list is the most recent, because the function orders by
+`createdAt` ASC) — the artifact that justified the decision to delegate.
+`area: 'dev'`, `leadAgent: 'dev-lead'`, `subagent` is the exact id of the activated agent
+(`extraDevAgentId(module)`, the SAME function that builds the id everywhere else in the
+use case — no new format). Without an `artifact.module_map` in the project (this should not happen — it is a mandatory input of the Dev Lead in
+`packages/contracts/fluxo.yml`), the delegation is NOT recorded with an invented id: it only logs the
+unexpected state, by the same lesson as RN-059 (never a silent failure, but also never fakes a justification that does not exist). And a failure of
+`RecordDelegationUseCase.execute` (e.g., database down) is caught and
+logged, never propagated — the activation of the dev agent is already a success when the attempt to record the delegation happens, and it cannot be brought down by an auxiliary write.
 
-- **Onde:** `apps/api/src/application/use-cases/execution/accept-parallelization.use-case.ts`
-  (`recordDevDelegation`, chamado ao fim de `execute`)
-- **Teste:** `apps/api/test/application/use-cases/execution/accept-parallelization.use-case.spec.ts`,
-  describe "delegação Dev Lead → dev (área dev, ADR 0094)" — grava com
-  `area: 'dev'` apontando pro module_map mais recente; sem module_map não
-  grava (e não lança); `RecordDelegationUseCase` falhando não derruba a
-  ativação
+- **Where:** `apps/api/src/application/use-cases/execution/accept-parallelization.use-case.ts`
+  (`recordDevDelegation`, called at the end of `execute`)
+- **Test:** `apps/api/test/application/use-cases/execution/accept-parallelization.use-case.spec.ts`,
+  describe "delegação Dev Lead → dev (área dev, ADR 0094)" — records with
+  `area: 'dev'` pointing to the most recent module_map; without module_map it does not
+  record (and does not throw); `RecordDelegationUseCase` failing does not bring down
+  the activation
 - **ADR:** [0094](../adr/0094-delegacao-dev-lead-vira-dado.md)
 
 ---
 
-## Auditoria fluxo.yml × código — Onda 6 (última): o gate `necessidade-validada` (RN-406, ADR 0095)
+## Fluxo.yml × code audit — Wave 6 (last): the `necessidade-validada` gate (RN-406, ADR 0095)
 
-Fecha o último achado do plano da auditoria (seção D,
-`docs/explanation/auditoria-fluxo-vs-codigo.md`) — B2. As outras cinco
-ondas já tinham fechado (a 3, 4 e 5 antecipadas fora de ordem pelos ADRs
-0089/0090; a 1 e a 2 nos PRs anteriores). `packages/contracts/fluxo.yml` (papel
-`criativo`) declarava `gate_saida: { id: necessidade-validada, status:
-proposto }` desde o ADR 0085 sem mecanismo nenhum atrás — e
-`modelo-de-time.md` já registrava por que: o Criativo (o modelo) decidir
-sozinho que a necessidade que ele mesmo produziu está validada seria
-autovalidação, não gate de verdade.
+Closes the last finding of the audit plan (section D,
+`docs/explanation/auditoria-fluxo-vs-codigo.md`) — B2. The other five
+waves had already closed (3, 4 and 5 brought forward out of order by ADRs
+0089/0090; 1 and 2 in the earlier PRs). `packages/contracts/fluxo.yml` (role
+`criativo`) declared `gate_saida: { id: necessidade-validada, status:
+proposto }` since ADR 0085 with no mechanism behind it — and
+`modelo-de-time.md` already recorded why: the Criativo (the model) deciding on its own that the need it itself produced is validated would be self-validation, not a real gate.
 
-### RN-406 — O gate `necessidade-validada` se fecha com um clique SEPARADO do usuário, nunca com o Criativo se autovalidando {#rn-406}
+### RN-406 — The `necessidade-validada` gate closes with a SEPARATE click from the user, never with the Criativo validating itself {#rn-406}
 
-> **Revista pelo [ADR 0185](../adr/0185-estou-pronto-fecha-os-dois-gates.md)
-> ([RN-657](api.md#rn-657)), por decisão do dono em 30/09.** O clique deixou de ser
-> SEPARADO: "Estou pronto — a necessidade está validada" grava
-> `readiness.confirmed` e `necessity.validated` no mesmo POST, com o
+> **Revised by [ADR 0185](../adr/0185-estou-pronto-fecha-os-dois-gates.md)
+> ([RN-657](api.md#rn-657)), by decision of the owner on 30/09.** The click stopped being
+> SEPARATE: "I'm ready — the need is validated" records
 > `product_brief` produzido DEPOIS do clique (`productBriefId: null`). O botão
 > "Confirmar necessidade validada" saiu da tela. O que desta regra continua
 > valendo: quem valida é sempre uma PESSOA, nunca o Criativo; o gate segue
