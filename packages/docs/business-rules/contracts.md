@@ -1,223 +1,218 @@
 ---
 id: rn-contracts
-title: 'Regras de negócio — Contratos'
-sidebar_label: Contratos
-description: 'As RNs hospedadas na raiz contracts.'
-keywords: [regras de negócio, contracts]
+title: 'Business rules — Contracts'
+sidebar_label: Contracts
+description: 'The RNs hosted at the contracts root.'
+keywords: [business rules, contracts]
+idioma_original: en
 ---
 
-# Contratos
+# Contracts
 
 ## Git
 
-### RN-028 — Capability decide, não o nome do provider {#rn-028}
+### RN-028 — Capability decides, not the provider's name {#rn-028}
 
-Operação não suportada (proteção de branch no provider local) é declarada em
-`capabilities` e rejeitada com `GitNotSupportedError` — nunca falha silenciosa.
+An unsupported operation (branch protection on the local provider) is declared in
+`capabilities` and rejected with `GitNotSupportedError` — never a silent failure.
 
-São **quatro** capabilities: `protectBranch` e `pullRequests` desde a Fase 2, e
-`listTree` e `pullRequestDiff` desde a FASE 26 (aba Code, só leitura). A regra
-não mudou com elas — mudou o alcance. E o critério de declarar continua sendo
-prova: capability só é `true` quando a suite a exercita naquele provider; sem
-prova, declara-se `false` e degrada (mesmo critério dos ADRs 0041/0042).
+There are **four** capabilities: `protectBranch` and `pullRequests` since Phase 2, and
+`listTree` and `pullRequestDiff` since PHASE 26 (Code tab, read-only). The rule
+did not change with them — its scope did. And the criterion for declaring one stays
+proof: a capability is only `true` when the suite exercises it on that provider; without
+proof, it is declared `false` and degrades (same criterion as ADRs 0041/0042).
 
-- **Onde:** `packages/shared/src/index.ts` (`GitProviderCapabilities`); os
-  tetos das duas operações de leitura em
-  `apps/api/src/domain/git/git-read-limits.ts`, fora do shared porque ele é
-  100% tipo
-- **Teste:** suite de contrato única, `test/contract/git-provider.contract.ts`,
-  rodada contra os três providers
-- **Origem:** [ADR 0001](../adr/0001-git-provider-contract-shape.md)
+- **Where:** `packages/shared/src/index.ts` (`GitProviderCapabilities`); the
+  ceilings of the two read operations in
+  `apps/api/src/domain/git/git-read-limits.ts`, kept out of shared because it is
+  100% type
+- **Test:** single contract suite, `test/contract/git-provider.contract.ts`,
+  run against the three providers
+- **Origin:** [ADR 0001](../adr/0001-git-provider-contract-shape.md)
 
-### RN-087 — O Dev Lead é o único endereço externo da execução {#rn-087}
+### RN-087 — The Dev Lead is the only external address of the execution {#rn-087}
 
-Existe um agente `dev-lead`, conversacional, que recebe o handoff do Arquiteto
-(desde a [RN-672](api.md#rn-672), da Infra, com o container do
-projeto `running`) e propõe o **plano de execução**: quantos agentes por módulo e por quê. Ele não
-escreve código — distribui trabalho e responde por ele.
+There is a `dev-lead` agent, conversational, that receives the handoff from the Architect
+(since [RN-672](api.md#rn-672), from Infra, with the project container
+`running`) and proposes the **execution plan**: how many agents per module and why. It does not
+write code — it distributes work and answers for it.
 
-**Antes dele, a frase "quem decide é o lead" da [RN-083](api.md#rn-083) não tinha
-dono.** O Arquiteto terminava e a execução subia por um botão, sem ninguém no
-meio para avaliar quanto trabalho havia.
+**Before it, the phrase "the lead decides" from [RN-083](api.md#rn-083) had no
+owner.** The Architect finished and the execution started from a button, with nobody in the
+middle to evaluate how much work there was.
 
-**Os `dev-<modulo>` deixaram de ser endereçáveis por handoff.** Isso não é
-exceção nova: é a regra do [ADR 0038](../adr/0038-hierarquia-de-agentes.md) —
-handoff externo endereça só lead de área ou agente sem área — passando a valer
-para o dev como já valia para QA e Infra. Enquanto não havia Dev Lead, eles
-eram agentes SEM área e por isso alvos válidos; virando membros, deixam de ser.
+**The `dev-<modulo>` agents stopped being addressable by handoff.** This is not a new
+exception: it is the rule of [ADR 0038](../adr/0038-hierarquia-de-agentes.md) —
+external handoff addresses only an area lead or an agent without an area — now applying
+to the dev as it already applied to QA and Infra. While there was no Dev Lead, they were
+agents WITHOUT an area and so were valid targets; once they become members, they stop being so.
 
-**A área de `dev` é a primeira DINÂMICA**, e é o que forçou o predicado: os
-membros são um por módulo do `module_map`, decididos pelo Arquiteto e
-diferentes em cada projeto, então não há lista a enumerar. `dev-lead` casa com
-o mesmo prefixo `dev-` dos membros, e quem o exclui é a regra genérica **o lead
-nunca é membro da própria área** — que vale para qualquer área e vive num lugar
-só. A primeira versão repetia essa exclusão em três pontos, e a verificação por
-mutação mostrou que nenhuma das cópias era alcançável por teste: cada uma
-sobrevivia à mutação da outra.
+**The `dev` area is the first DYNAMIC one**, and it is what forced the predicate: the
+members are one per module of the `module_map`, decided by the Architect and
+different in each project, so there is no list to enumerate. `dev-lead` matches the
+same `dev-` prefix as the members, and what excludes it is the generic rule **the lead
+is never a member of its own area** — which applies to any area and lives in one
+single place. The first version repeated this exclusion in three points, and mutation
+verification showed that none of the copies was reachable by a test: each one
+survived the mutation of the others.
 
-**O plano é `proposed_action` (revisado pelo [ADR 0086](../adr/0086-dev-lead-plano-suspende-para-aprovacao.md), [RN-284](engine.md#rn-284)).**
-Até essa mudança o plano virava EVENTO simples, sem aprovação: o argumento era
-que propor não tem efeito externo — o gasto acontece quando os agentes sobem,
-e é lá que o teto cobra autorização; transformar a proposta em ação a decidir
-faria você decidir duas vezes a mesma coisa. Uma auditoria de
-`packages/contracts/fluxo.yml` × código encontrou que o fluxo já declarava esta saída como
-`via: proposed_action` desde o ADR 0085, e o código nunca foi ajustado para
-bater — o dono do produto decidiu que o código errava: o plano é a PRIMEIRA
-decisão real de quanto a sessão vai gastar com paralelismo, e o usuário passou
-a decidir ativar a execução tendo VISTO uma aprovação de verdade, não só lido
-uma linha no fio. A lição antiga não desapareceu — é o motivo pelo qual
-`propose_execution_plan` NÃO entrou no bloco de tetos absolutos de
-`decide.ts` (ver RN-284).
+**The plan is `proposed_action` (revised by [ADR 0086](../adr/0086-dev-lead-plano-suspende-para-aprovacao.md), [RN-284](engine.md#rn-284)).**
+Until that change the plan became a simple EVENT, with no approval: the argument was
+that proposing has no external effect — the spending happens when the agents start,
+and that is where the ceiling charges authorization; turning the proposal into an action to decide
+would make you decide the same thing twice. An audit of
+`packages/contracts/fluxo.yml` × code found that the flow had already declared this exit as
+`via: proposed_action` since ADR 0085, and the code had never been adjusted to
+match — the product owner decided the code was wrong: the plan is the FIRST real decision on how much the session will spend on parallelism, and the user
+started deciding to enable execution having SEEN a real approval, not just read
+a line in the thread. The old lesson did not disappear — it is the reason why
+`propose_execution_plan` did NOT enter the block of absolute ceilings in
+`decide.ts` (see RN-284).
 
-**O plano BEM-SUCEDIDO encerra o turno — no caminho SEM suspensão.** Na
-primeira execução real o Dev Lead registrou **dois** `execution.plan_proposed`
-na mesma sessão — textos diferentes, mesmo total —, porque o laço voltava ao
-modelo e ele propunha de novo. O event log é imutável: ficaram duas propostas
-e nada dizendo qual valia. A instrução "use uma vez" no spec da ferramenta é
-pedido, não garantia; quem garante é o laço parar. Desde o ADR 0086, quando a
-proposta fica `pending`, quem encerra o turno é a PARADA por suspensão
-(RN-284) — o sucesso imediato (`auto_approved`/`executed`/`approved`, ver
-RN-284) continua fechando o laço do mesmo jeito de sempre.
+**The SUCCESSFUL plan ends the turn — on the path WITHOUT suspension.** In the
+first real execution the Dev Lead registered **two** `execution.plan_proposed`
+events in the same session — different texts, same total —, because the loop went back
+to the model and it proposed again. The event log is immutable: there were two proposals
+and nothing saying which one was valid. The instruction "use it once" in the tool spec is a
+request, not a guarantee; what guarantees it is the loop stopping. Since ADR 0086, when the
+proposal stays `pending`, what ends the turn is the STOP by suspension
+(RN-284) — the immediate success (`auto_approved`/`executed`/`approved`, see
+RN-284) keeps closing the loop in the same way as always.
 
-**Bem-sucedido, e não "chamou a ferramenta"**: um plano recusado (vazio, ou com
-zero agente num módulo) deixa o laço seguir, senão a recusa vira fim de turno e
-o modelo nunca chega a corrigir. A primeira versão desta guarda olhava só o
-nome da ferramenta e tinha esse defeito — encontrado pelo teste comportamental,
-não pela leitura.
+**Successful, and not "called the tool"**: a refused plan (empty, or with zero agents in a
+module) lets the loop continue, otherwise the refusal becomes the end of the turn and
+the model never gets to correct it. The first version of this guard looked only at the
+tool name and had this defect — found by the behavioral test,
+not by reading.
 
-Um plano vazio, ou com zero agente num módulo, é recusado **antes de propor
-qualquer coisa** — a proposta, uma vez criada, é decisão real do usuário, e um
-plano meio proposto não teria como ser retratado.
+An empty plan, or one with zero agents in a module, is refused **before proposing
+anything** — the proposal, once created, is a real decision by the user, and a half-proposed
+plan would have no way to be represented.
 
-- **Onde:** `apps/engine/lib/engine/agents/dev_lead_server.ex` e
-  `dev_lead_tools.ex`; a regra de endereçamento em
-  `apps/api/src/domain/agents/agent-areas.ts`; o handoff em
+- **Where:** `apps/engine/lib/engine/agents/dev_lead_server.ex` and
+  `dev_lead_tools.ex`; the addressing rule in
+  `apps/api/src/domain/agents/agent-areas.ts`; the handoff in
   `application/use-cases/agents/offer-infra-handoff.use-case.ts`
-- **Teste:** `apps/engine/test/engine/agents/dev_lead_tools_test.exs`,
+- **Test:** `apps/engine/test/engine/agents/dev_lead_tools_test.exs`,
   `dev_lead_server_test.exs` (`o plano ENCERRA o turno`, `o plano recusado NÃO
   encerra o turno`),
   `apps/api/test/domain/agents/agent-areas.spec.ts` (`o dev de módulo DEIXOU de
-  ser endereçável`, `` `dev-lead` É endereçável, apesar do prefixo ``) e
+  ser endereçável`, `` `dev-lead` É endereçável, apesar do prefixo ``) and
   `test/application/use-cases/agents/offer-infra-handoff.use-case.spec.ts`
-- **Origem:** [ADR 0053](../adr/0053-dev-lead-e-paralelismo-autorizado.md), FASE 14d;
-  o mecanismo de aprovação revisado pelo [ADR 0086](../adr/0086-dev-lead-plano-suspende-para-aprovacao.md)
+- **Origin:** [ADR 0053](../adr/0053-dev-lead-e-paralelismo-autorizado.md), FASE 14d;
+  the approval mechanism revised by [ADR 0086](../adr/0086-dev-lead-plano-suspende-para-aprovacao.md)
+### RN-110 — `blame` is the 13th operation of the `GitProviderContract`, with the same vocabulary of absence as the other reads {#rn-110}
 
-### RN-110 — `blame` é a 13ª operação do `GitProviderContract`, com o mesmo vocabulário de ausência das outras leituras {#rn-110}
+Foundation of the blame pending declared in PHASE 26 (no screen consumes it
+yet — it comes in the next wave). `blame(ref, path)` returns `GitBlame | null`,
+with `null` meaning exactly what it already means in `getFileContent`/
+`listTree`: the file is missing at that ref, or the ref does not exist. Two vocabularies of
+"does not exist" for the same tab would make the screen handle the same case in
+two ways — the same reason that already applied to the two previous operations.
 
-Fundação da pendência de blame declarada na FASE 26 (nenhuma tela consome
-ainda — vem na onda seguinte). `blame(ref, path)` devolve `GitBlame | null`,
-`null` significando exatamente o que já significa em `getFileContent`/
-`listTree`: arquivo ausente naquela ref, ou ref inexistente. Dois vocabulários
-de "não existe" para a mesma aba fariam a tela tratar o mesmo caso de duas
-formas — a mesma razão que já valia para as duas operações anteriores.
+Each provider computes it by its OWN means, because there is no common endpoint: GitHub
+has no blame in REST (only GraphQL — the only operation of the provider that
+speaks GraphQL), GitLab has `repository/files/:path/blame`, and the local one comes from
+`git blame --porcelain`, the only one of the three tested against a real repository in
+this session (the other two only against the fake backends of the contract test — with no
+`GITHUB_TEST_TOKEN`/`GITLAB_TEST_TOKEN` in the environment, whoever proves it against the real
+API is the manual smoke test). `GIT_BLAME_LINE_LIMIT` (2000) cuts a genuinely huge
+file — already cut by bytes on the content route, but `blame` reads the whole file from the
+provider before deciding.
 
-Cada provider computa por meios PRÓPRIOS, porque não há endpoint comum: o
-GitHub não tem blame na REST (só GraphQL — a única operação do provider que
-fala GraphQL), o GitLab tem `repository/files/:path/blame`, e o local sai de
-`git blame --porcelain`, o único dos três testado contra um repositório de
-verdade nesta sessão (os outros dois só contra os backends fake do teste de
-contrato — sem `GITHUB_TEST_TOKEN`/`GITLAB_TEST_TOKEN` no ambiente, quem prova
-contra a API real é o smoke manual). `GIT_BLAME_LINE_LIMIT` (2000) corta
-arquivo genuinamente enorme — já cortado por bytes na rota de conteúdo, mas
-`blame` lê o arquivo inteiro do provider antes de decidir.
-
-- **Onde:** `packages/shared/src/index.ts` (`BlameInput`, `GitBlame`,
+- **Where:** `packages/shared/src/index.ts` (`BlameInput`, `GitBlame`,
   `GitBlameLine`, capability `blame`),
   `apps/api/src/infrastructure/git/{github,gitlab,local}-provider.ts`,
   `apps/api/src/domain/git/git-read-limits.ts` (`GIT_BLAME_LINE_LIMIT`),
   `apps/api/src/application/use-cases/git/read-project-code.use-case.ts`
-  (método `blame`), `apps/api/src/interfaces/http/git/code.controller.ts`
+  (method `blame`), `apps/api/src/interfaces/http/git/code.controller.ts`
   (`GET /projects/:id/code/blame`)
-- **Teste:** `apps/api/test/contract/git-provider.contract.ts` (bloco "blame"),
-  exercitado pelos três specs de provider — o do `local` contra git de
-  verdade — e `read-project-code.use-case.spec.ts` (bloco "blame")
-- **Origem:** FASE 26b (fundação das pendências declaradas da FASE 26/
+- **Test:** `apps/api/test/contract/git-provider.contract.ts` (block "blame"),
+  exercised by the three provider specs — the one for `local` against real git — and
+  `read-project-code.use-case.spec.ts` (block "blame")
+- **Origin:** PHASE 26b (foundation of the pendings declared in PHASE 26/
   [ADR 0060](../adr/0060-superficie-de-leitura-de-codigo.md))
 
-### RN-111 — `listPullRequests` é a 14ª operação do `GitProviderContract`; a lista navegável abre o mesmo diff por id {#rn-111}
+### RN-111 — `listPullRequests` is the 14th operation of the `GitProviderContract`; the browsable list opens the same diff by id {#rn-111}
 
-`CodeDiffPanel.tsx` consome `listPullRequests(state?)` numa lista clicável
-(id/número/título/autor/estado/branches, com filtro por estado); clicar num
-item reusa o MESMO fluxo de diff por id que já existia — não há caminho novo
-de leitura, só como CHEGAR ao id sem precisar saber de cor. Quem já sabe o id
-(ex.: veio de Aprovações) continua podendo colar direto.
+`CodeDiffPanel.tsx` consumes `listPullRequests(state?)` in a clickable list
+(id/number/title/author/state/branches, with a filter by state); clicking an
+item reuses the SAME diff-by-id flow that already existed — there is no new read path,
+only a way to ARRIVE at the id without needing to know it by heart. Whoever already knows the id
+(e.g., it came from Approvals) can still paste it directly.
 
-`listPullRequests(state?)` devolve um RESUMO por PR
-(`GitPullRequestSummary`: id, número, título, autor, estado, branches,
-`updatedAt`) — não `GitPullRequest`, que é o tipo de ESCREVER (abrir/mesclar) e
-nunca teve título nem autor porque nenhuma das duas operações precisava. Um
-tipo próprio evita que a escrita ganhe campos que só a leitura usa.
+`listPullRequests(state?)` returns a SUMMARY per PR
+(`GitPullRequestSummary`: id, number, title, author, state, branches,
+`updatedAt`) — not `GitPullRequest`, which is the type for WRITING (open/merge) and
+never had a title or author because neither of the two operations needed them. A
+type of its own keeps the write from gaining fields only the read uses.
 
-O `local` TEM PR — o store sidecar da Fase 4a já é a fonte, e a suposição do
-enunciado ("PR não existe no conceito de repositório local puro") não se
-sustentou: o self-contained dos dev agents criou PR local desde então. As três
-capabilities são `true`. `GIT_PR_LIST_LIMIT` (100) é uma página só, sem
-paginação de seguimento — navegação humana, não sincronização de histórico.
+The `local` provider DOES have PRs — the sidecar store from Phase 4a is already the source, and the
+assumption in the brief ("a PR does not exist in the pure local repository concept") did not
+hold: the dev agents' self-contained setup has created local PRs since then. The three
+capabilities are `true`. `GIT_PR_LIST_LIMIT` (100) is a single page, with no follow-up
+pagination — human navigation, not history synchronization.
 
-- **Onde:** `packages/shared/src/index.ts` (`ListPullRequestsInput`,
+- **Where:** `packages/shared/src/index.ts` (`ListPullRequestsInput`,
   `GitPullRequestSummary`, `GitPullRequestList`, capability
   `pullRequestsList`), `apps/api/src/infrastructure/git/{github,gitlab,
   local}-provider.ts`, `apps/api/src/domain/git/git-read-limits.ts`
-  (`GIT_PR_LIST_LIMIT`), `read-project-code.use-case.ts` (método
+  (`GIT_PR_LIST_LIMIT`), `read-project-code.use-case.ts` (method
   `pullRequests`), `code.controller.ts` (`GET /projects/:id/code/pull-requests`),
-  `apps/web/src/routes/code/CodeDiffPanel.tsx` (lista clicável, filtro por
-  estado, reuso do fluxo de diff por id)
-- **Teste:** `git-provider.contract.ts` (bloco "listPullRequests"),
+  `apps/web/src/routes/code/CodeDiffPanel.tsx` (clickable list, filter by
+  state, reuse of the diff-by-id flow)
+- **Test:** `git-provider.contract.ts` (block "listPullRequests"),
   `read-project-code.use-case.spec.ts` (bloco "lista de PRs"),
   `apps/web/src/routes/code/CodeDiffPanel.test.tsx`
-- **Origem:** FASE 26b
+- **Origin:** PHASE 26b
 
-### RN-112 — `listBranchesDetailed` é operação PRÓPRIA, separada de `listBranches` {#rn-112}
+### RN-112 — `listBranchesDetailed` is its OWN operation, separate from `listBranches` {#rn-112}
 
-Fundação do dropdown rico, agora consumida por `CodeBranchPicker.tsx`
-(`ahead`/`behind`, badge de PR — a onda seguinte à FASE 26b fechou a
-pendência que `CodeShell.tsx` declarava). A decisão foi NÃO estender `listBranches` — a
-13ª operação original, que o bootstrap de Gitflow chama sem precisar de nada
-disso: enriquecer custa uma chamada extra ao provider POR BRANCH (duas no
-GitLab, que não tem endpoint que devolva os dois lados de uma comparação numa
-chamada só, ao contrário de `compareCommitsWithBasehead` do GitHub e de `git
-rev-list --left-right --count` no local). Encostar esse custo em toda
-adoção/criação de branch transformaria o bootstrap numa varredura cara. As
-duas operações convivem no contrato: `listBranches` pro bootstrap,
-`listBranchesDetailed` (a 15ª) pra aba Code — `GitBranchDetail` estende
-`GitBranch` só na FORMA, nunca no CONTRATO de quem chama.
+Foundation of the rich dropdown, now consumed by `CodeBranchPicker.tsx`
+(`ahead`/`behind`, PR badge — the wave following PHASE 26b closed the
+pending that `CodeShell.tsx` declared). The decision was NOT to extend `listBranches` — the
+original 13th operation, which the Gitflow bootstrap calls without needing any of this:
+enriching it costs an extra call to the provider PER BRANCH (two on
+GitLab, which has no endpoint that returns the two sides of a comparison in a single
+call, unlike `compareCommitsWithBasehead` on GitHub and `git
+rev-list --left-right --count` locally). Putting that cost on every branch adoption/creation would turn the bootstrap into an expensive sweep. The
+two operations coexist in the contract: `listBranches` for the bootstrap,
+`listBranchesDetailed` (the 15th) for the Code tab — `GitBranchDetail` extends
+`GitBranch` only in SHAPE, never in the CONTRACT of its caller.
 
-`ahead`/`behind` são sempre relativos à branch DEFAULT do repositório
-(`ListBranchesDetailedInput.defaultBranch`, que o chamador já sabe — pedi-la
-de novo ao provider seria uma chamada a mais só pra redescobrir o que já
-tinha). `null` nos dois quando o provider não consegue computar (branch órfã,
-histórico não relacionado) é degradação honesta, nunca um número inventado.
-`GIT_BRANCH_DETAIL_LIMIT` (30) corta pelas mesmas razões de tráfego do item 34
-da FASE 26 — sem ele, um repositório com centenas de branches viraria centenas
-de chamadas por abertura do dropdown.
+`ahead`/`behind` are always relative to the repository's DEFAULT branch
+(`ListBranchesDetailedInput.defaultBranch`, which the caller already knows — asking the provider
+for it again would be one more call just to rediscover what was already known). `null` in both when the provider cannot compute it (orphan branch,
+unrelated history) is honest degradation, never an invented number.
+`GIT_BRANCH_DETAIL_LIMIT` (30) cuts for the same traffic reasons as item 34 of
+PHASE 26 — without it, a repository with hundreds of branches would become hundreds of
+calls per opening of the dropdown.
 
-- **Onde:** `packages/shared/src/index.ts` (`ListBranchesDetailedInput`,
+- **Where:** `packages/shared/src/index.ts` (`ListBranchesDetailedInput`,
   `GitBranchDetail`, `GitBranchDetailList`, `GitBranchPullRequestRef`,
   capability `branchesDetailed`), `apps/api/src/infrastructure/git/{github,
   gitlab,local}-provider.ts`, `git-read-limits.ts`
-  (`GIT_BRANCH_DETAIL_LIMIT`), `read-project-code.use-case.ts` (método
+  (`GIT_BRANCH_DETAIL_LIMIT`), `read-project-code.use-case.ts` (method
   `branches`), `code.controller.ts` (`GET /projects/:id/code/branches`);
-  no web, `apps/web/src/lib/api-client.ts` (`getCodeBranches`) e
-  `apps/web/src/routes/code/CodeBranchPicker.tsx` — o dropdown em si, aberto
-  a partir de `CodeShell.tsx`
-- **Teste:** `git-provider.contract.ts` (bloco "listBranchesDetailed"),
+  on the web, `apps/web/src/lib/api-client.ts` (`getCodeBranches`) and
+  `apps/web/src/routes/code/CodeBranchPicker.tsx` — the dropdown itself, opened
+  from `CodeShell.tsx`
+- **Test:** `git-provider.contract.ts` (block "listBranchesDetailed"),
   `read-project-code.use-case.spec.ts` (bloco "branches detalhadas"),
   `apps/web/src/routes/code/CodeBranchPicker.test.tsx`
-- **Borda:** o método `branches()` mora no MESMO caso de uso das outras seis
-  leituras (`ReadProjectCodeUseCase`), não perto do bootstrap — é uma LEITURA
-  da aba Code, com a mesma resolução de credencial e o mesmo portão de
-  container (RN-105) que as demais; tratá-la como operação de bootstrap
-  duplicaria os dois. Uma ref fora da lista de branches (tag ou sha) segue
-  alcançável — o rodapé do dropdown tem um campo manual, porque
-  `listBranchesDetailed` não enumera essas duas coisas.
-- **Origem:** FASE 26b (fundação); onda seguinte fechou a UI
+- **Edge:** the `branches()` method lives in the SAME use case as the other six
+  reads (`ReadProjectCodeUseCase`), not near the bootstrap — it is a READ
+  of the Code tab, with the same credential resolution and the same container gate
+  (RN-105) as the others; treating it as a bootstrap operation would duplicate both. A ref outside the branch list (tag or sha) remains
+  reachable — the dropdown footer has a manual field, because
+  `listBranchesDetailed` does not enumerate those two things.
+- **Origin:** PHASE 26b (foundation); the following wave closed the UI
 
-## O gate `implementavel` ativa — QA-estratégia como segundo momento do qa-lead (RN-340/341, ADR 0090)
+## The `implementavel` gate activates — QA strategy as the second moment of the qa-lead (RN-340/341, ADR 0090)
 
-### RN-341 — A QA-estratégia é o segundo MOMENTO do qa-lead, e nunca suspende {#rn-341}
+### RN-341 — The QA strategy is the second MOMENT of the qa-lead, and it never suspends {#rn-341}
 
-`packages/contracts/fluxo.yml` declarava o papel `qa-estrategia` como `proposto`, com o
-critério de separação escrito no próprio registro: "pode ser o próprio
+`packages/contracts/fluxo.yml` declared the role `qa-estrategia` as `proposto`, with the
 qa-lead em segundo MOMENTO, não necessariamente agente novo — a separação é
 de entregável". O [ADR 0090](../adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
 constrói exatamente isso: `Engine.Gates.QaEstrategiaAgent` é módulo SEM
