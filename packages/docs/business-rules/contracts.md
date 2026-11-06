@@ -562,15 +562,15 @@ keeps coming from the Architect's decision, and `pull` is not a new operation of
 
 - **Code:**
   `packages/docker-port/src/docker-cli.ts:206` (`PullExcedeuTetoError`),
-  `:586` (`garantirImagem`), `:125` (`CHAMADAS_DE_CONTROLE_NO_START`),
+  `:754` (`garantirImagem`), `:129` (`CHAMADAS_DE_CONTROLE_NO_START`),
   `:116` (`TIMEOUT_DE_CONTROLE_MS`);
-  `apps/broker/src/servidor.ts:231` (`PullExcedeuTetoError`);
-  `apps/api/src/infrastructure/http-clients/container-broker.client.ts:241` (`TETO_DE_MUTACAO_MS`),
-  `:205` (`CHAMADAS_DE_CONTROLE_NO_START`),
-  `:264` (`TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`);
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:1974` (`opcoes_do_propose_action`),
+  `apps/broker/src/servidor.ts:240` (`PullExcedeuTetoError`);
+  `apps/api/src/infrastructure/http-clients/container-broker.client.ts:252` (`TETO_DE_MUTACAO_MS`),
+  `:216` (`CHAMADAS_DE_CONTROLE_NO_START`),
+  `:275` (`TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`);
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:1985` (`opcoes_do_propose_action`),
 
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:1974` (`opcoes_do_propose_action`),
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:1985` (`opcoes_do_propose_action`),
   `:1649` (`@teto_do_propose_action_de_container_ms`);
   `apps/engine/lib/engine/runners/runner_router.ex:52` (`@timeout_do_start_ms`)
 - **Test:** `packages/docker-port/src/docker-cli.spec.ts:425` (describe of the
@@ -608,7 +608,7 @@ write to the project folder, which belongs to the operator's uid: `npm install` 
 
 - **Where:** `packages/docker-port/src/docker-cli.ts:838` (`argsDeCriacao`),
   `packages/docker-port/src/spec-de-container.ts:136` (`usuarioValidado`),
-  `apps/broker/src/operacoes.ts:427` (`especificacaoDoProjeto`),
+  `apps/broker/src/operacoes.ts:456` (`especificacaoDoProjeto`),
   `apps/api/src/application/use-cases/containers/obter-spec-de-container.use-case.ts:124`
   (`ObterSpecDeContainerUseCase`)
 - **Test:** `packages/docker-port/src/docker-cli.spec.ts` (the `run` takes
