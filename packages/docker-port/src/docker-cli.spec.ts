@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   CHAMADAS_DE_CONTROLE_NO_START,
   ComandoDeDockerFalhouError,
   DockerCliAusenteError,
   DockerViaCli,
   SUPERVISOR_DO_APP,
+  REINICIAR_APP,
   EMBRULHO_DO_EXEC,
   estourouOTeto,
   PullExcedeuTetoError,
@@ -853,5 +856,135 @@ describe('DockerViaCli — spec ampliada (ADR 0228/0229)', () => {
       j.some((c) => c.includes('--label brabo.qa.compartilhado=1') && c.includes('--network-alias db')),
     ).toBe(true);
     expect(j).toContain(`network connect brabo-qa-exp002-f52be111 ${NOME_QA}`);
+  });
+});
+
+describe('DockerViaCli.reiniciarApp (RN-1024)', () => {
+  const rodando = { quando: ['ps'], entao: comSaida(linhaDePs('brabo-exp002-f52be111', 'running')) };
+
+  it('o comando viaja só como $1 do script constante, e nenhuma outra chamada é feita', async () => {
+    const comando = `echo "a'b"; $(rm -rf /) \`x\``;
+    const { rodar, chamadas } = duplo([rodando, { quando: ['exec'], entao: OK }]);
+    const r = await new DockerViaCli(rodar).reiniciarApp('exp002-f52be111', comando);
+    expect(r).toEqual({ reiniciou: true });
+    const exec = chamadas.filter((c) => c[0] === 'exec');
+    expect(exec).toEqual([['exec', 'c0ffee', '/bin/sh', '-c', REINICIAR_APP, 'brabo-restart', comando]]);
+    expect(REINICIAR_APP).not.toContain(comando);
+    expect(chamadas.some((c) => ['stop', 'rm', 'run', 'start'].includes(c[0] ?? ''))).toBe(false);
+  });
+
+  it('sem container running: motivo sem_container, sem exec', async () => {
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida(linhaDePs('brabo-exp002-f52be111', 'exited')) },
+    ]);
+    expect(await new DockerViaCli(rodar).reiniciarApp('exp002-f52be111', 'x')).toEqual({
+      reiniciou: false,
+      motivo: 'sem_container',
+    });
+    expect(chamadas.some((c) => c[0] === 'exec')).toBe(false);
+  });
+
+  it('app que caiu: app_saiu com o código, sem repassar stdout/stderr (nunca log)', async () => {
+    const { rodar } = duplo([
+      rodando,
+      { quando: ['exec'], entao: { exitCode: 64, stdout: 'app-exit:3\n', stderr: 'JWT_SECRET=abc', timedOut: false } },
+    ]);
+    const r = await new DockerViaCli(rodar).reiniciarApp('exp002-f52be111', 'x');
+    expect(r).toEqual({ reiniciou: false, motivo: 'app_saiu', exitCode: 3 });
+    expect(JSON.stringify(r)).not.toContain('JWT_SECRET');
+  });
+
+  it('timeout e falha de exec têm motivo próprio; 64 sem app-exit é falha_no_exec', async () => {
+    const t = duplo([rodando, { quando: ['exec'], entao: { ...OK, exitCode: -1, timedOut: true } }]);
+    expect(await new DockerViaCli(t.rodar).reiniciarApp('exp002-f52be111', 'x')).toEqual({
+      reiniciou: false,
+      motivo: 'tempo_esgotado',
+    });
+    for (const [exitCode, stdout] of [[1, 'app-exit:3'], [64, 'lixo']] as const) {
+      const f = duplo([rodando, { quando: ['exec'], entao: { ...OK, exitCode, stdout } }]);
+      expect(await new DockerViaCli(f.rodar).reiniciarApp('exp002-f52be111', 'x')).toEqual({
+        reiniciou: false,
+        motivo: 'falha_no_exec',
+      });
+    }
+  });
+
+  it('o supervisor e o reinício usam o mesmo lançador, que grava o .pid', () => {
+    expect(SUPERVISOR_DO_APP).toContain('/tmp/brabo-app.pid');
+    expect(SUPERVISOR_DO_APP.endsWith('exec sleep infinity')).toBe(true);
+    expect(REINICIAR_APP).toContain('/tmp/brabo-app.pid');
+  });
+});
+
+// Shell de verdade (sem Docker): o script roda em `sh` local; os caminhos de /tmp
+// são os mesmos do container, então o teste limpa antes e depois.
+describe('REINICIAR_APP em sh real (RN-1024)', () => {
+  const limpar = () => spawnSync('rm', ['-f', '/tmp/brabo-app.pid', '/tmp/brabo-app.exit', '/tmp/brabo-app.log']);
+  const vivo = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const rodarScript = (script: string, comando: string) =>
+    spawnSync('/bin/sh', ['-c', script, 'brabo-restart', comando], {
+      encoding: 'utf8',
+      env: { ...process.env, BRABO_REINICIO_ESPERA: '1' },
+    });
+  const lerPid = () => Number(readFileSync('/tmp/brabo-app.pid', 'utf8').trim());
+  const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  beforeEach(limpar);
+  afterEach(() => {
+    if (existsSync('/tmp/brabo-app.pid')) {
+      try {
+        process.kill(-lerPid(), 'SIGKILL');
+      } catch {
+        // ja morto
+      }
+    }
+    limpar();
+  });
+
+  it('sem .pid só lança; com .pid mata o grupo antigo e grava o novo', async () => {
+    expect(rodarScript(REINICIAR_APP, 'sleep 60').status).toBe(0);
+    const antigo = lerPid();
+    expect(vivo(antigo)).toBe(true);
+
+    expect(rodarScript(REINICIAR_APP, 'sleep 61').status).toBe(0);
+    const novo = lerPid();
+    expect(novo).not.toBe(antigo);
+    await esperar(200);
+    expect(vivo(antigo)).toBe(false);
+    expect(vivo(novo)).toBe(true);
+  });
+
+  it('app que ignora TERM leva KILL depois de 5 s', async () => {
+    expect(rodarScript(REINICIAR_APP, 'trap "" TERM; while :; do sleep 1; done').status).toBe(0);
+    const teimoso = lerPid();
+    await esperar(300);
+    expect(rodarScript(REINICIAR_APP, 'sleep 63').status).toBe(0);
+    expect(vivo(teimoso)).toBe(false);
+  }, 20_000);
+
+  it('app que cai dentro da espera: sai 64 com app-exit, sem o log no stdout', () => {
+    const r = rodarScript(REINICIAR_APP, 'echo SEGREDO=abc; exit 3');
+    expect(r.status).toBe(64);
+    expect(r.stdout.trim()).toBe('app-exit:3');
+    expect(r.stdout + r.stderr).not.toContain('SEGREDO');
+  });
+
+  it('o supervisor também grava o .pid do app (grupo próprio)', async () => {
+    const fundo = spawn('/bin/sh', ['-c', SUPERVISOR_DO_APP, 'brabo-app', 'sleep 62'], { stdio: 'ignore' });
+    try {
+      await esperar(400);
+      const pid = lerPid();
+      expect(vivo(pid)).toBe(true);
+      expect(pid).not.toBe(fundo.pid);
+    } finally {
+      fundo.kill('SIGKILL');
+    }
   });
 });

@@ -89,6 +89,7 @@ import {
   type PortaPublicada,
   PONTO_DE_MONTAGEM,
   ROTULO_GERENCIADO,
+  type ResultadoDoReinicio,
 } from './docker-port.ts';
 import type {
   ContainerIniciado,
@@ -114,6 +115,9 @@ export const TETO_DE_BYTES_PADRAO = 32_768;
  * `container_start` — mudou aqui, muda nos dois (RN-604/RN-605).
  */
 export const TIMEOUT_DE_CONTROLE_MS = 30_000;
+
+/** Reinicio do app: ate 5 s de TERM + 10 s de espera + margem (RN-1024). */
+export const TIMEOUT_DO_REINICIO_MS = 30_000;
 
 /**
  * Quantas chamadas de controle o `start` faz no PIOR caso, em série: os dois
@@ -374,15 +378,43 @@ function portasPublicadasDe(detalhe: InspecaoDeContainer): PortaPublicada[] {
 }
 
 /**
+ * O lancador do app, compartilhado pelo supervisor e pelo reinicio: o `sh`
+ * interno grava o proprio PID em `.pid` e faz `exec` do comando, entao o PID
+ * gravado e o do lider do grupo/sessao (via `setsid`) e `kill -- -<pid>` pega o
+ * app inteiro. O subshell redireciona tudo, senao o `docker exec` do reinicio
+ * esperaria o pipe fechar. `$1` e o comando do usuario, so posicional.
+ */
+const LANCAR_O_APP =
+  's=$(command -v setsid); ($s /bin/sh -c \'echo $$ >/tmp/brabo-app.pid; exec /bin/sh -c "$1"\' brabo-app "$1" ' +
+  '>/tmp/brabo-app.log 2>&1; echo $? >/tmp/brabo-app.exit) >/dev/null 2>&1 </dev/null &';
+
+/**
  * AT-610 (ADR 0228): o supervisor do comando do app. CONSTANTE - o comando do
  * usuario entra so como `$1` (argumento posicional, molde RN-807), nunca
  * concatenado. O app sobe em background (`setsid` quando existe), com log e
  * codigo de saida em /tmp (efemeros, fora do bind-mount); o PID 1 segue sendo
  * o `sleep infinity` de sempre, entao app que morre fica morto.
  */
-export const SUPERVISOR_DO_APP =
-  's=$(command -v setsid); ($s /bin/sh -c "$1" >/tmp/brabo-app.log 2>&1; ' +
-  'echo $? >/tmp/brabo-app.exit) & exec sleep infinity';
+export const SUPERVISOR_DO_APP = `${LANCAR_O_APP} exec sleep infinity`;
+
+/**
+ * AT-617 (RN-1024, ADR 0264): reinicia SO o processo do app, no lugar. `$1` e o
+ * comando (nunca concatenado). Mata o grupo gravado em `.pid` (TERM, e KILL
+ * depois de 5 s), apaga `.exit`, relanca com o MESMO lancador do supervisor e
+ * espera ate `BRABO_REINICIO_ESPERA` s (10 por padrao) por um `.exit`: se ele
+ * apareceu, o app caiu e o script sai com 64 e `app-exit:<n>` no stdout. Sem
+ * `.pid` (app que nunca rodou) so lanca. Nunca imprime o log do app.
+ */
+export const REINICIAR_APP =
+  'p=$(cat /tmp/brabo-app.pid 2>/dev/null); ' +
+  'if [ -n "$p" ]; then kill -TERM -"$p" 2>/dev/null || kill -TERM "$p" 2>/dev/null; i=0; ' +
+  'while [ $i -lt 50 ] && kill -0 "$p" 2>/dev/null; do sleep 0.1; i=$((i+1)); done; ' +
+  'kill -KILL -"$p" 2>/dev/null; fi; ' +
+  'rm -f /tmp/brabo-app.pid /tmp/brabo-app.exit; ' +
+  `${LANCAR_O_APP} ` +
+  'i=0; w="${BRABO_REINICIO_ESPERA:-10}"; ' +
+  'while [ $i -lt "$w" ] && [ ! -f /tmp/brabo-app.exit ]; do sleep 1; i=$((i+1)); done; ' +
+  '[ -f /tmp/brabo-app.exit ] && { echo "app-exit:$(cat /tmp/brabo-app.exit)"; exit 64; }; exit 0';
 
 export class DockerViaCli extends DockerPort {
   private readonly rodar: RodarDocker;
@@ -562,6 +594,27 @@ export class DockerViaCli extends DockerPort {
       return { exitCode: -1, output: output + marcaDeTimeout(timeoutMs, morto), timedOut: true };
     }
     return { exitCode: resultado.exitCode, output, timedOut: false };
+  }
+
+  /**
+   * AT-617 (RN-1024): reinicia so o processo do app, sem tocar no container nem
+   * nos outros `exec`. Nunca lanca por falha do app; o resultado e tipado e
+   * NUNCA carrega trecho do log (o comando do app pode ter segredo).
+   */
+  async reiniciarApp(workspaceDirName: string, comandoDoApp: string): Promise<ResultadoDoReinicio> {
+    const existente = await this.resolver(nomeDe(workspaceDirName));
+    if (existente === null || existente.estado !== 'running') {
+      return { reiniciou: false, motivo: 'sem_container' };
+    }
+    const r = await this.rodar(
+      ['exec', existente.id, '/bin/sh', '-c', REINICIAR_APP, 'brabo-restart', comandoDoApp],
+      TIMEOUT_DO_REINICIO_MS,
+    );
+    if (r.timedOut) return { reiniciou: false, motivo: 'tempo_esgotado' };
+    if (r.exitCode === 0) return { reiniciou: true };
+    const saiu = r.exitCode === 64 ? /^app-exit:(\d{1,3})$/m.exec(r.stdout) : null;
+    if (saiu !== null) return { reiniciou: false, motivo: 'app_saiu', exitCode: Number(saiu[1]) };
+    return { reiniciou: false, motivo: 'falha_no_exec' };
   }
 
   /**
