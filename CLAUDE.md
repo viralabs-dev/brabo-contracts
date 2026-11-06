@@ -116,7 +116,7 @@ Contratos compartilhados: `packages/shared` (tipos), `packages/docker-port` (por
   verdade e o Node recusa type stripping dentro de `node_modules`
 
 ## Documentação é parte da definição de pronto (permanente)
-- A doc deste repo mora em `docs/` e é só em inglês (AT-745): só o `brabo` é multilíngue, então não há `docs/i18n/`. Ao alterar código, atualize a doc da área NA MESMA mudança e mostre o diff dela junto com o do código. Não pergunte se deve: faça. NUNCA crie `website/docs/`: o site é agregado pelo `brabo`, que lê a `docs/` de cada repositório.
+- A doc deste repo mora em `docs/` e é em pt-BR (decisão do dono, 06/11/2026, que reverte a ADR 0260 e a AT-745), sem `docs/i18n/`: só o `brabo` é multilíngue. Ao alterar código, atualize a doc da área NA MESMA mudança e mostre o diff dela junto com o do código. Não pergunte se deve: faça. NUNCA crie `website/docs/`: o site é agregado pelo `brabo`, que lê a `docs/` de cada repositório.
 - Mudança de comportamento observável → entrada em `CHANGELOG.md` (Unreleased). Versão própria a partir da 1.0.0, e toda tag nasce de workflow (nunca versionar à mão).
 - Regra de negócio nova → RN-XXX com `caminho:N` (`símbolo`) e o teste que a cobre, na `docs/business-rules*` deste repo; a numeração é UMA só no produto (nunca reinicie), a âncora `{#rn-NNN}` é o contrato e não muda quando a RN muda de arquivo. Aloque o número varrendo as branches locais e o remoto (colide com frente paralela).
 - Mudança estrutural (fronteira de camada, banco, modelo de consistência, dependência pesada) → ADR novo com o próximo número; ADR aceito NUNCA é editado (o novo o referencia). Os ADRs moram no repo `brabo` (a porta de entrada do produto).
