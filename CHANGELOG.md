@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- CI: repina os reutilizáveis do `brabo-ci` em `f2d99e4` (merge da ci#16): `ubuntu-26.04`, `client-id` no lugar de `app-id`, rótulo de família criado antes de aplicar, linha `Carimbo:` na tag e helper `vinculos` (AT-772, AT-773).
+- CI: repina os reutilizáveis do `brabo-ci` em `13f3697` (merge da ci#17, que inclui a ci#16): `ubuntu-26.04`, `client-id` no lugar de `app-id`, rótulo de família criado antes de aplicar, linha `Carimbo:` na tag e helper `vinculos` (AT-772, AT-773).
 - CI: todo `runs-on` fixa `ubuntu-26.04` no lugar de `ubuntu-latest`, e o `actionlint` conhece o rótulo (AT-772).
 
 - Os pacotes viram lib no GitHub Packages (AT-770, ADR 0270, que revisa o item 2 da ADR 0252): `@viralabs-dev/brabo-shared` e `@viralabs-dev/brabo-docker-port`, públicos, com `dist` (`.js` + `.d.ts`), `exports` e a mesma versão, a da tag. `publish.yml` novo: a tag `v*` chama o `publish-npm.yml` do `brabo-ci` (SHA provisório, repinar no merge). O CI ganha `pnpm -r build` e `npm pack --dry-run`. Sem tag nem publicação à mão.
