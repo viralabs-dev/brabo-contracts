@@ -12,7 +12,10 @@ permissions:
   attestations: write
 jobs:
   publicar:
-    uses: viralabs-dev/brabo-ci/.github/workflows/publish-npm.yml@f7f792b1e17593e4f636f394114e599392c32c9c  # dev (PROVISÓRIO: repinar para o SHA do publish-npm.yml no merge)
+    uses: viralabs-dev/brabo-ci/.github/workflows/publish-npm.yml@8cd085b29089bc630ce85cb851e0ab6eef0e56c4  # brabo-ci dev, merge da ci#13 (publish-npm.yml)
     with:
-      pacotes: packages/shared packages/docker-port
+      pacotes: |
+        packages/shared
+        packages/docker-port
       tag: ${{ github.ref_name }}
+      ci_ref: 8cd085b29089bc630ce85cb851e0ab6eef0e56c4
