@@ -1,13 +1,13 @@
 {
-  "name": "@brabo/docker-port",
+  "name": "@viralabs-dev/brabo-docker-port",
   "version": "0.0.1",
   "license": "MIT",
-  "private": true,
   "description": "A porta de acesso a Docker (ADR 0128) e a composição da especificação de container — o mecanismo ÚNICO compartilhado pelos dois implementadores previstos, o runner (Docker da máquina do usuário) e o broker (Docker do servidor).",
   "type": "module",
-  "types": "./src/index.ts",
-  "main": "./src/index.ts",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --deny-warnings src vitest.config.ts"
@@ -17,5 +17,22 @@
     "oxlint": "^1.71.0",
     "typescript": "^5.7.3",
     "vitest": "^4.1.11"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viralabs-dev/brabo-contracts.git",
+    "directory": "packages/docker-port"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
 }

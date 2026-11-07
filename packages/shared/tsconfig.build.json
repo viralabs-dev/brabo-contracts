@@ -1,0 +1,14 @@
+{
+  // Só o que vai para o pacote publicado: `dist` com `.js` e `.d.ts` (ADR 0270).
+  // `rewriteRelativeImportExtensions` troca o `./x.ts` do fonte por `./x.js`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.spec.ts"]
+}

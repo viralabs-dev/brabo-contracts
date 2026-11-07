@@ -1,14 +1,35 @@
 {
-  "name": "@brabo/shared",
+  "name": "@viralabs-dev/brabo-shared",
   "version": "0.0.1",
   "license": "MIT",
-  "private": true,
-  "types": "./src/index.ts",
-  "main": "./src/index.ts",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.build.json && vitest run"
   },
   "devDependencies": {
-    "typescript": "^5.7.3"
-  }
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viralabs-dev/brabo-contracts.git",
+    "directory": "packages/shared"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
 }

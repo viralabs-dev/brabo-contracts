@@ -615,16 +615,16 @@ continua vindo da decisão do Arquiteto, e `pull` não é operação nova do bro
   reaproveitadas na tentativa seguinte.
 
 - **Código:**
-  `packages/docker-port/src/docker-cli.ts:202` (`PullExcedeuTetoError`),
-  `:586` (`garantirImagem`), `:125` (`CHAMADAS_DE_CONTROLE_NO_START`),
+  `packages/docker-port/src/docker-cli.ts:206` (`PullExcedeuTetoError`),
+  `:754` (`garantirImagem`), `:129` (`CHAMADAS_DE_CONTROLE_NO_START`),
   `:116` (`TIMEOUT_DE_CONTROLE_MS`);
-  `apps/broker/src/servidor.ts:231` (`PullExcedeuTetoError`);
-  `apps/api/src/infrastructure/http-clients/container-broker.client.ts:241` (`TETO_DE_MUTACAO_MS`),
-  `:205` (`CHAMADAS_DE_CONTROLE_NO_START`),
-  `:264` (`TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`);
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:1945` (`opcoes_do_propose_action`),
+  `apps/broker/src/servidor.ts:240` (`PullExcedeuTetoError`);
+  `apps/api/src/infrastructure/http-clients/container-broker.client.ts:252` (`TETO_DE_MUTACAO_MS`),
+  `:216` (`CHAMADAS_DE_CONTROLE_NO_START`),
+  `:275` (`TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`);
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:1985` (`opcoes_do_propose_action`),
 
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:1945` (`opcoes_do_propose_action`),
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:1985` (`opcoes_do_propose_action`),
   `:1649` (`@teto_do_propose_action_de_container_ms`);
   `apps/engine/lib/engine/runners/runner_router.ex:52` (`@timeout_do_start_ms`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts:425` (describe da
@@ -661,9 +661,9 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
 4. **Não afrouxa contenção**: `--cap-drop ALL`, um bind, rede de dois valores
    e cinco operações continuam. Container já criado só muda ao ser recriado.
 
-- **Onde:** `packages/docker-port/src/docker-cli.ts:785` (`argsDeCriacao`),
+- **Onde:** `packages/docker-port/src/docker-cli.ts:838` (`argsDeCriacao`),
   `packages/docker-port/src/spec-de-container.ts:136` (`usuarioValidado`),
-  `apps/broker/src/operacoes.ts:427` (`especificacaoDoProjeto`),
+  `apps/broker/src/operacoes.ts:456` (`especificacaoDoProjeto`),
   `apps/api/src/application/use-cases/containers/obter-spec-de-container.use-case.ts:124`
   (`ObterSpecDeContainerUseCase`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` (o `run` leva
@@ -687,8 +687,8 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
   `['containers-overview']` e `['container-lifecycle', projectId]` no
   `finally` — também quando a chamada falha ou cai —, e devolve a promessa ao
   card. Nenhum poll novo (RN-579/632).
-- **Onde:** `packages/docker-port/src/docker-cli.ts:785` (`argsDeCriacao`),
-  `apps/web/src/components/AcoesDoContainer.tsx:61` (`invalidateContainers`), `:172`
+- **Onde:** `packages/docker-port/src/docker-cli.ts:838` (`argsDeCriacao`),
+  `apps/web/src/components/AcoesDoContainer.tsx:55` (`invalidateContainers`), `:166`
   (`aprovar`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` (`run` leva
   `--init` antes do comando), `apps/broker/src/contencao-do-brabo.spec.ts`
@@ -714,8 +714,8 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
   do busybox dentro do `sh -c` — o vigia morre com o cliente e o `sleep`
   sobrevive. Se a morte falhar (`/tmp` sem escrita, por exemplo), a marca diz
   que o processo pode ter sobrevivido.
-- **Onde:** `packages/docker-port/src/docker-cli.ts:279` (`estourouOTeto`),
-  `packages/docker-port/src/docker-cli.ts:506` (`matarExecEstourado`)
+- **Onde:** `packages/docker-port/src/docker-cli.ts:283` (`estourouOTeto`),
+  `packages/docker-port/src/docker-cli.ts:538` (`matarExecEstourado`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` ("erro nulo depois do
   teto É estouro"; "no estouro mata o grupo do comando DENTRO do container";
   "o comando que estoura volta timedOut e MORRE dentro do container", contra
@@ -732,7 +732,7 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
   é desfeito, porque `unless-stopped` não religa o que foi parado à mão — nunca
   `always`. Medido: container `unless-stopped` parado com `docker stop` segue
   `exited` com `RestartCount=0`.
-- **Onde:** `packages/docker-port/src/docker-cli.ts:785` (`argsDeCriacao`)
+- **Onde:** `packages/docker-port/src/docker-cli.ts:838` (`argsDeCriacao`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` ("cria o container
   com rótulo gerenciado, UM bind e as capabilities derrubadas")
 - **Origem:** AT-494 (o daemon reiniciado deixou todo container de projeto
@@ -741,34 +741,55 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
 ### RN-928 — O comando do app é argumento de um supervisor constante, e sem ele o container é o de sempre {#rn-928}
 
 - **Regra:** `EspecificacaoDeContainer.comandoDoApp` (opcional, até 300 caracteres, sem `\n`, `\r` nem NUL) troca o `sleep infinity` pelo supervisor CONSTANTE `SUPERVISOR_DO_APP`, que recebe o comando como `$1` (molde da [RN-807](#rn-807)) e nunca o concatena: aspas, `;` e `$()` do comando não escapam. O app sobe em background (log em `/tmp/brabo-app.log`, código em `/tmp/brabo-app.exit`) e o PID 1 segue `sleep infinity`. Ausente ou `null`, o `docker run` é byte a byte o anterior. O broker lê o campo SÓ da `container-spec` da api. ([ADR 0228](../adr/0228-comando-do-app-e-rede-do-container.md).)
-- **Onde:** `packages/docker-port/src/spec-de-container.ts:351` (`comandoDoAppValidado`), `packages/docker-port/src/docker-cli.ts:380` (`SUPERVISOR_DO_APP`), `packages/docker-port/src/docker-cli.ts:785` (`argsDeCriacao`)
-- **Teste:** `packages/docker-port/src/docker-cli.spec.ts:657` (`NÃO-REGRESSÃO`), `packages/docker-port/src/docker-cli.spec.ts:676` (comando com `'`, `;` e `$()` fica como argumento)
+- **Onde:** `packages/docker-port/src/spec-de-container.ts:351` (`comandoDoAppValidado`), `packages/docker-port/src/docker-cli.ts:398` (`SUPERVISOR_DO_APP`), `packages/docker-port/src/docker-cli.ts:838` (`argsDeCriacao`)
+- **Teste:** `packages/docker-port/src/docker-cli.spec.ts:685` (`NÃO-REGRESSÃO`), `packages/docker-port/src/docker-cli.spec.ts:704` (comando com `'`, `;` e `$()` fica como argumento)
 - **Origem:** AT-610 (EP-030).
 
 ### RN-929 — Porta publicada vai só ao loopback, e DNS e `extra_hosts` são IP literal e nome de lista fechada {#rn-929}
 
 - **Regra:** `portas` vira sempre `-p 127.0.0.1:H:C` (TCP; interface constante, sem opção), host de 1024 a 65535 fora de 3000, 4000, 5173, 5432, 7474, 7687, 8088, 8090 e 11434, no máximo 10 e sem duplicata. `dns` é IP literal v4/v6 (até 3). `hostsExtras` é `{ nome, ip }` (até 10) com nome em `[a-z0-9.-]` de até 253 caracteres, nunca `localhost`, `host.docker.internal` nem nome de serviço da instalação, e IPv4 literal. Os três são recusados com rede `none`. `inspect` devolve `portasPublicadas` lidas de `NetworkSettings.Ports`, separadas do declarado ([RN-468](web.md#rn-468)). ([ADR 0228](../adr/0228-comando-do-app-e-rede-do-container.md).)
-- **Onde:** `packages/docker-port/src/spec-de-container.ts:384` (`portasValidadas`), `packages/docker-port/src/spec-de-container.ts:405` (`dnsValidado`), `packages/docker-port/src/spec-de-container.ts:415` (`hostsExtrasValidados`), `packages/docker-port/src/docker-cli.ts:358` (`portasPublicadasDe`)
-- **Teste:** `packages/docker-port/src/spec-de-container.spec.ts:237` (recusas), `packages/docker-port/src/docker-cli.spec.ts:688` (`-p 127.0.0.1`, `--dns`, `--add-host`), `apps/broker/src/operacoes.spec.ts:289` (vem da api)
+- **Onde:** `packages/docker-port/src/spec-de-container.ts:384` (`portasValidadas`), `packages/docker-port/src/spec-de-container.ts:405` (`dnsValidado`), `packages/docker-port/src/spec-de-container.ts:415` (`hostsExtrasValidados`), `packages/docker-port/src/docker-cli.ts:365` (`portasPublicadasDe`)
+- **Teste:** `packages/docker-port/src/spec-de-container.spec.ts:237` (recusas), `packages/docker-port/src/docker-cli.spec.ts:714` (`-p 127.0.0.1`, `--dns`, `--add-host`), `apps/broker/src/operacoes.spec.ts:289` (vem da api)
 - **Origem:** AT-608 (EP-030), fatia do contrato.
 
 ### RN-930 — A instância de QA é efêmera, só mexe no que tem `brabo.papel=qa` e sobe os serviços que a Infra declarou por digest {#rn-930}
 
 - **Regra:** a spec com `qa: { chave, servicos }` sobe `brabo-qa-<workspace_dir_name>-<chave>` sem `--restart`, com `brabo.papel=qa` e `brabo.qa.instancia`, sem app nem porta. `stop`, `remove`, `inspect` e `exec` com `alvo` de QA filtram `brabo.papel=qa`; homônimo sem o papel é "não gerenciado" e nada é removido. Cada serviço (até 6, imagem por digest `@sha256:` obrigatório, `env` de chaves `[A-Z_][A-Z0-9_]*`) sobe com `--network container:<qa>`, `--cap-drop ALL`, sem privilégio nem porta publicada, tetos constantes e `--tmpfs`; serviço compartilhado vive na rede privada `--internal` do projeto. O broker expõe `/containers/:projectId/qa/:chave/{start,remove,exec}` e lê os serviços da api, conferindo a chave. ([ADR 0229](../adr/0229-instancia-de-qa-efemera-com-servicos-declarados-pela-infra.md).)
-- **Onde:** `packages/docker-port/src/docker-cli.ts:572` (`iniciarQa`), `packages/docker-port/src/docker-cli.ts:880` (`argsDeServicoDeQa`), `packages/docker-port/src/spec-de-container.ts:439` (`instanciaDeQaValidada`), `apps/broker/src/operacoes.ts:212` (`startQa`), `apps/broker/src/servidor.ts:135` (`rotaDeContainer`)
-- **Teste:** `packages/docker-port/src/docker-cli.spec.ts:756` (remove só alcança o papel `qa`), `packages/docker-port/src/spec-de-container.spec.ts:256` (digest, chave, env), `apps/broker/src/operacoes.spec.ts:321` (lista da api e chave da rota), `apps/broker/src/servidor.spec.ts:405` (roteador fechado)
+- **Onde:** `packages/docker-port/src/docker-cli.ts:625` (`iniciarQa`), `packages/docker-port/src/docker-cli.ts:933` (`argsDeServicoDeQa`), `packages/docker-port/src/spec-de-container.ts:439` (`instanciaDeQaValidada`), `apps/broker/src/operacoes.ts:212` (`startQa`), `apps/broker/src/servidor.ts:135` (`rotaDeContainer`)
+- **Teste:** `packages/docker-port/src/docker-cli.spec.ts:815` (remove só alcança o papel `qa`), `packages/docker-port/src/spec-de-container.spec.ts:256` (digest, chave, env), `apps/broker/src/operacoes.spec.ts:321` (lista da api e chave da rota), `apps/broker/src/servidor.spec.ts:405` (roteador fechado)
 - **Origem:** AT-612 (EP-030).
 
 ### RN-941 — O serviço de QA roda com usuário e comando declarados, nunca como root, e leva o nome da instância mais o do serviço {#rn-941}
 
 - **Regra:** revisa a RN-930 e a RN-935 depois da prova com Docker real de 29/10/2026 (AT-612), que achou três defeitos. (1) O serviço PRÓPRIO era criado com o nome da própria instância (`Conflict`): agora é `<instância>-<serviço>`, o que `removerServicosDeQa` e o rótulo `brabo.qa.dono` já esperavam. (2) Postgres sob `--cap-drop ALL` sai com `chown`/`chmod` negados: o serviço ganha `user` (`"<uid>:<gid>"`, inteiros diferentes de 0, sem zero à esquerda, nunca root) que vira `--user`, e os caminhos `tmpfs` montam com `uid=`, `gid=` e `mode=0700` do mesmo dono. (3) Imagens que não sobem sozinhas: o serviço ganha `command` (1 a 16 argumentos de até 200 caracteres, sem `\0`, `\n` ou `\r`), passado como argumentos DEPOIS da imagem, nunca por shell. `null` equivale a ausente. A contenção não muda (`--cap-drop ALL`, sem `--privileged`/`--cap-add`, sem porta publicada, tetos constantes). A régua mora nos três lugares (docker-port, api, engine) e nenhum deles aceita `0`.
-- **Onde:** `packages/docker-port/src/spec-de-container.ts:453` (`usuarioDeServicoValidado`), `packages/docker-port/src/docker-cli.ts:880` (`argsDeServicoDeQa`), `apps/api/src/domain/infra/run-instructions.ts:160` (`recusaDoQa`), `apps/engine/lib/engine/infra/instrucoes_de_execucao.ex:133` (`qa`).
+- **Onde:** `packages/docker-port/src/spec-de-container.ts:453` (`usuarioDeServicoValidado`), `packages/docker-port/src/docker-cli.ts:933` (`argsDeServicoDeQa`), `apps/api/src/domain/infra/run-instructions.ts:160` (`recusaDoQa`), `apps/engine/lib/engine/infra/instrucoes_de_execucao.ex:133` (`qa`).
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` (nome, `--user`, dono do tmpfs, comando), `packages/docker-port/src/spec-de-container.spec.ts` (recusa de `0:0`, `70:0`, `70`, comando grande/com quebra), `apps/broker/src/operacoes.spec.ts`, `apps/api/test/domain/infra/run-qa.spec.ts`, `apps/engine/test/engine/infra/instrucoes_de_execucao_test.exs`; prova com Docker real: `postgres:17-alpine` com `70:70` aceita conexão em `localhost:5432` e `busybox httpd` responde em `localhost:9000` de dentro da instância.
 - **Origem:** AT-612 (EP-030), ADR 0229.
 
 ### RN-947 — O comando do agente no `exec` não aparece na linha de comando de nenhum processo do container {#rn-947}
 
 - **Regra:** o comando do `exec` da `DockerPort` viaja por `-e BRABO_EXEC_CMD=<comando>` e não mais no argv: o embrulho da [RN-807](#rn-807) o lê, faz `unset` e `set --`, e o roda por `(eval "$c")` em subshell (mesmo grupo, mesmo PID gravado, `exit` e `set -e` contidos, exit code preservado). O argv do container fica só `/bin/sh -c <embrulho> brabo-exec <marcador>`. Medido no uso real: os 36 comandos do QA de automação com `pkill -f` morriam com 143, porque o padrão casava o argv do próprio `sh`. Fora, declarado: o runner no host (`apps/runner/src/exec.ts`), que a [RN-507](runner.md#rn-507) já condiciona a container `running`.
-- **Onde:** `packages/docker-port/src/docker-cli.ts:299` (`EMBRULHO_DO_EXEC`).
+- **Onde:** `packages/docker-port/src/docker-cli.ts:303` (`EMBRULHO_DO_EXEC`).
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` ("o comando que estoura volta timedOut e MORRE dentro do container", contra Docker real: auto-`pkill -f` sobrevive, `exit 3` volta 3, o comando não aparece no `ps`).
 - **Origem:** AT-622 (EP-030).
+
+### RN-1024 — O app é reiniciado no lugar: só o processo dele, nunca o container nem os outros `exec` {#rn-1024}
+
+- **Regra:** a `DockerPort` ganha a sexta operação, `reiniciarApp(workspaceDirName, comandoDoApp)`, que reinicia SÓ o processo do app supervisionado dentro do container em execução; as lanes dividem esse container, então ele não é parado nem recriado, e nenhum outro processo é tocado. O supervisor (`SUPERVISOR_DO_APP`) passa a lançar o app por um lançador cujo `sh` interno grava o próprio PID em `/tmp/brabo-app.pid` e depois faz `exec` do comando, então o PID gravado é o líder do grupo e da sessão do app. O script constante `REINICIAR_APP` manda TERM para esse grupo (KILL depois de 5 s), remove o `.pid` e o `.exit`, relança com o mesmo lançador e espera até 10 s por `/tmp/brabo-app.exit`: se ele aparece, o app morreu. Sem `.pid` (o app nunca rodou, por exemplo num container nascido com `sleep infinity`), ele só lança. O comando do usuário trafega só como `$1` do script, pelo argv do `docker exec`, nunca concatenado ([RN-807](#rn-807)). O resultado é tipado: `{ reiniciou: true }` ou `{ reiniciou: false, motivo }`, com `motivo` entre `sem_container`, `tempo_esgotado`, `falha_no_exec` e `app_saiu` (este com o `exitCode`). O resultado NUNCA leva trecho de log, porque o comando do app pode ter segredo em texto puro; o log fica em `/tmp/brabo-app.log`, dentro do container. Revisa as decisões 1 ("app que morre fica morto", agora só até o próximo reinício) e 5 ("cinco operações") da ADR 0228. O broker, a api e a engine o consomem pela TAG deste repositório.
+- **Onde:** `packages/docker-port/src/docker-port.ts:625` (`reiniciarApp`), `packages/docker-port/src/docker-cli.ts:604` (`reiniciarApp`), `packages/docker-port/src/docker-cli.ts:408` (`REINICIAR_APP`), `packages/docker-port/src/docker-cli.ts:398` (`SUPERVISOR_DO_APP`)
+- **Teste:** `packages/docker-port/src/docker-cli.spec.ts:862` (argv, resultados tipados, sem log), `packages/docker-port/src/docker-cli.spec.ts:921` (`sh` real: mata o grupo antigo, KILL quando o TERM é ignorado, grava o novo `.pid`, `app-exit` com app morto)
+- **Origem:** AT-617 (EP-030), ADR 0264.
+
+### RN-1037 — O `dist` do `shared` não exporta nenhum valor {#rn-1037}
+
+- **Regra:** o `@viralabs-dev/brabo-shared` é publicado com `dist`, mas continua 100% tipo: o `dist/index.js` é `export {};` e só o `.d.ts` carrega a superfície. Um `export const` no fonte do `shared` vira runtime em quem consome e reabre a porta que o invariante antigo fechava (ver a RN-1024 para o que é runtime e mora no `docker-port`). Quem precisa de lista em runtime a guarda no consumidor.
+- **Onde:** `packages/shared/src/index.ts`, `packages/shared/tsconfig.build.json`.
+- **Teste:** `packages/shared/src/dist-so-tipos.spec.ts` (o `test` do pacote roda o build antes; mutação provada: um `export const` no fonte reprova dois casos).
+- **Origem:** AT-770, ADR 0270.
+
+### RN-1041 — O `docker-cli.json` é o espelho das constantes de controle do `docker-cli.ts` {#rn-1041}
+
+- **Regra:** `packages/contracts/docker-cli.json` tem exatamente `CHAMADAS_DE_CONTROLE_NO_START` e `TIMEOUT_DE_CONTROLE_MS`, com os valores de `docker-cli.ts`. O engine (Elixir) o baixa por raw na tag e deriva dele o teto do `container_start` (RN-604/RN-605), no lugar de ler o `.ts` por expressão regular. Mudou a constante: mude o JSON, e o spec reprova se divergirem ou se sobrar/faltar chave.
+- **Onde:** `packages/contracts/docker-cli.json`, `packages/docker-port/src/docker-cli.ts` (`TIMEOUT_DE_CONTROLE_MS`, `CHAMADAS_DE_CONTROLE_NO_START`).
+- **Teste:** `packages/docker-port/src/docker-cli-json.spec.ts` (mutação provada: trocar o valor no JSON reprova).
+- **Origem:** AT-770, ADR 0270.

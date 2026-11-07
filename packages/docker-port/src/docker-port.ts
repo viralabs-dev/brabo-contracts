@@ -500,6 +500,15 @@ export interface ResultadoDeExec {
 }
 
 /**
+ * Resultado do reinício do app (RN-1024). Sem campo de texto livre de propósito:
+ * o comando do app pode carregar segredo, então nenhum trecho de log viaja aqui.
+ */
+export type ResultadoDoReinicio =
+  | { readonly reiniciou: true }
+  | { readonly reiniciou: false; readonly motivo: 'sem_container' | 'tempo_esgotado' | 'falha_no_exec' }
+  | { readonly reiniciou: false; readonly motivo: 'app_saiu'; readonly exitCode: number };
+
+/**
  * O daemon não respondeu. Origem `infra` no vocabulário do produto — nunca
  * diagnóstico por eliminação (lição do ADR 0020): esta classe é lançada só
  * quando o erro do transporte diz que ninguém atendeu, e a mensagem diz o que
@@ -562,7 +571,8 @@ export class ContainerAusenteError extends Error {
 }
 
 /**
- * As CINCO operações. Não seis.
+ * As SEIS operações (a sexta, `reiniciarApp`, é a RN-1024 / ADR 0264, que revisa
+ * o "cinco" do ADR 0228).
  *
  * O `alvo` opcional (ADR 0229) é o papel `qa`: a instância efêmera é endereçada
  * por `{papel: 'qa', chave}` e só alcança container com `brabo.papel=qa`.
@@ -606,6 +616,13 @@ export abstract class DockerPort {
     pedido: PedidoDeExec,
     alvo?: AlvoDeQa,
   ): Promise<ResultadoDeExec>;
+
+  /**
+   * Reinicia SÓ o processo do app supervisionado (RN-1024): não toca no
+   * container nem nos outros `exec` (as lanes usam o mesmo container).
+   * `comandoDoApp` é o `run.app.command` vigente, passado como argumento.
+   */
+  abstract reiniciarApp(workspaceDirName: string, comandoDoApp: string): Promise<ResultadoDoReinicio>;
 }
 
 /** `brabo-<workspace_dir_name>` — a única derivação do nome (ver RN-109). */
