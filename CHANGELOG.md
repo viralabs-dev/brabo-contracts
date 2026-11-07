@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Ko-fi do mantenedor: `.github/FUNDING.yml` (botão Sponsor) e seção Apoie no README (AT-768).
+
 - Doc de volta ao pt-BR (decisão do dono, 06/11/2026, revertendo a ADR 0260; AT-766): `README.md` e `packages/docs/business-rules/contracts.md` em pt-BR, sem `idioma_original`, com as âncoras e as refs de código preservadas; o `README.md` passa a citar as tags estáveis (`v1.0.0`, `v1.1.0`) e a pré-release `v1.2.0-dev.N`, o `packages/docs`, a operação `reiniciarApp` e a seção "Repositórios do Brabo".
 - `docker-port`: nova operação `reiniciarApp` / script `REINICIAR_APP` (RN-1024, AT-617): reinicia só o processo do app no lugar, sem tocar no container nem nos `exec`; resultado tipado `ResultadoDoReinicio` sem trecho de log. `SUPERVISOR_DO_APP` passa a gravar `/tmp/brabo-app.pid`. A porta passa de cinco para seis operações (a `DockerPort` ganha método abstrato: quem a implementa precisa de `reiniciarApp`).
 - Doc: o `README.md` passou para o inglês (AT-745). Nenhuma tag é cortada aqui; o merge na `dev` a gera por workflow.
