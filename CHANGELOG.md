@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CI: todo `runs-on` fixa `ubuntu-26.04` no lugar de `ubuntu-latest`, e o `actionlint` conhece o rótulo (AT-772).
+
 - Os pacotes viram lib no GitHub Packages (AT-770, ADR 0270, que revisa o item 2 da ADR 0252): `@viralabs-dev/brabo-shared` e `@viralabs-dev/brabo-docker-port`, públicos, com `dist` (`.js` + `.d.ts`), `exports` e a mesma versão, a da tag. `publish.yml` novo: a tag `v*` chama o `publish-npm.yml` do `brabo-ci` (SHA provisório, repinar no merge). O CI ganha `pnpm -r build` e `npm pack --dry-run`. Sem tag nem publicação à mão.
 - `shared` continua só com tipos, agora travado pelo `dist`: spec novo falha se o `index.js` exportar valor (RN-1037).
 - `packages/contracts/docker-cli.json` novo, para o engine ler as constantes de controle do `docker-cli.ts` por raw; spec trava o espelho (RN-1041).
