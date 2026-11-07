@@ -1,5 +1,7 @@
 name: publish
 
+run-name: ${{ format('publish {0} ← tag do carimbo', github.ref_name) }}
+
 # Publica os dois pacotes no GitHub Packages quando a tag vX.Y.Z[-dev.N] nasce (ADR 0270).
 # A tag é empurrada pelo token do App (tag.yml), por isso dispara este workflow; o GITHUB_TOKEN não dispararia.
 on:
@@ -19,3 +21,14 @@ jobs:
         packages/docker-port
       tag: ${{ github.ref_name }}
       ci_ref: 13f3697aaf3e4a151637755babb58422a44db303
+  # Vínculos (AT-773): sem `needs`, só lê a origem da linha `Carimbo:` da tag anotada.
+  vinculos:
+    name: Vínculos (origem pela tag)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Vínculos do run
+        uses: viralabs-dev/brabo-ci/.github/actions/vinculos@13f3697aaf3e4a151637755babb58422a44db303  # brabo-ci#17 (AT-773)
