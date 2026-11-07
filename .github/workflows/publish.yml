@@ -1,0 +1,18 @@
+name: publish
+
+# Publica os dois pacotes no GitHub Packages quando a tag vX.Y.Z[-dev.N] nasce (ADR 0270).
+# A tag é empurrada pelo token do App (tag.yml), por isso dispara este workflow; o GITHUB_TOKEN não dispararia.
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+jobs:
+  publicar:
+    uses: viralabs-dev/brabo-ci/.github/workflows/publish-npm.yml@f7f792b1e17593e4f636f394114e599392c32c9c  # dev (PROVISÓRIO: repinar para o SHA do publish-npm.yml no merge)
+    with:
+      pacotes: packages/shared packages/docker-port
+      tag: ${{ github.ref_name }}

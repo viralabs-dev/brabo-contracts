@@ -779,3 +779,17 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
 - **Onde:** `packages/docker-port/src/docker-port.ts:625` (`reiniciarApp`), `packages/docker-port/src/docker-cli.ts:604` (`reiniciarApp`), `packages/docker-port/src/docker-cli.ts:408` (`REINICIAR_APP`), `packages/docker-port/src/docker-cli.ts:398` (`SUPERVISOR_DO_APP`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts:862` (argv, resultados tipados, sem log), `packages/docker-port/src/docker-cli.spec.ts:921` (`sh` real: mata o grupo antigo, KILL quando o TERM é ignorado, grava o novo `.pid`, `app-exit` com app morto)
 - **Origem:** AT-617 (EP-030), ADR 0264.
+
+### RN-1037 — O `dist` do `shared` não exporta nenhum valor {#rn-1037}
+
+- **Regra:** o `@viralabs-dev/brabo-shared` é publicado com `dist`, mas continua 100% tipo: o `dist/index.js` é `export {};` e só o `.d.ts` carrega a superfície. Um `export const` no fonte do `shared` vira runtime em quem consome e reabre a porta que o invariante antigo fechava (ver a RN-1024 para o que é runtime e mora no `docker-port`). Quem precisa de lista em runtime a guarda no consumidor.
+- **Onde:** `packages/shared/src/index.ts`, `packages/shared/tsconfig.build.json`.
+- **Teste:** `packages/shared/src/dist-so-tipos.spec.ts` (o `test` do pacote roda o build antes; mutação provada: um `export const` no fonte reprova dois casos).
+- **Origem:** AT-770, ADR 0270.
+
+### RN-1041 — O `docker-cli.json` é o espelho das constantes de controle do `docker-cli.ts` {#rn-1041}
+
+- **Regra:** `packages/contracts/docker-cli.json` tem exatamente `CHAMADAS_DE_CONTROLE_NO_START` e `TIMEOUT_DE_CONTROLE_MS`, com os valores de `docker-cli.ts`. O engine (Elixir) o baixa por raw na tag e deriva dele o teto do `container_start` (RN-604/RN-605), no lugar de ler o `.ts` por expressão regular. Mudou a constante: mude o JSON, e o spec reprova se divergirem ou se sobrar/faltar chave.
+- **Onde:** `packages/contracts/docker-cli.json`, `packages/docker-port/src/docker-cli.ts` (`TIMEOUT_DE_CONTROLE_MS`, `CHAMADAS_DE_CONTROLE_NO_START`).
+- **Teste:** `packages/docker-port/src/docker-cli-json.spec.ts` (mutação provada: trocar o valor no JSON reprova).
+- **Origem:** AT-770, ADR 0270.

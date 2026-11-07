@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Os pacotes viram lib no GitHub Packages (AT-770, ADR 0270, que revisa o item 2 da ADR 0252): `@viralabs-dev/brabo-shared` e `@viralabs-dev/brabo-docker-port`, públicos, com `dist` (`.js` + `.d.ts`), `exports` e a mesma versão, a da tag. `publish.yml` novo: a tag `v*` chama o `publish-npm.yml` do `brabo-ci` (SHA provisório, repinar no merge). O CI ganha `pnpm -r build` e `npm pack --dry-run`. Sem tag nem publicação à mão.
+- `shared` continua só com tipos, agora travado pelo `dist`: spec novo falha se o `index.js` exportar valor (RN-1037).
+- `packages/contracts/docker-cli.json` novo, para o engine ler as constantes de controle do `docker-cli.ts` por raw; spec trava o espelho (RN-1041).
+- Doc: `README.md` e `CLAUDE.md` (Stack decidida e Docker-port) descrevem o consumo pelo pacote.
+
 - Ko-fi do mantenedor: `.github/FUNDING.yml` (botão Sponsor) e seção Apoie no README (AT-768).
 
 - Doc de volta ao pt-BR (decisão do dono, 06/11/2026, revertendo a ADR 0260; AT-766): `README.md` e `packages/docs/business-rules/contracts.md` em pt-BR, sem `idioma_original`, com as âncoras e as refs de código preservadas; o `README.md` passa a citar as tags estáveis (`v1.0.0`, `v1.1.0`) e a pré-release `v1.2.0-dev.N`, o `packages/docs`, a operação `reiniciarApp` e a seção "Repositórios do Brabo".

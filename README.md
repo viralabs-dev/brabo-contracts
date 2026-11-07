@@ -1,24 +1,33 @@
 # brabo-contracts
 
 Contratos compartilhados do Brabo (ADR 0252): `packages/shared`, `packages/docker-port`
-(só fonte TypeScript, sem build), `packages/contracts` (`areas.json`, `fluxo.yml`) e
+(os dois publicados com `dist`), `packages/contracts` (`areas.json`, `fluxo.yml`, `docker-cli.json`) e
 `packages/docs` (as RNs dos contratos, em pt-BR, que o `brabo` lê ao montar o site).
 
-## Consumir por TAG
+## Consumir o pacote
 
-```sh
-pnpm add "git+https://github.com/viralabs-dev/brabo-contracts.git#v1.1.0&path:/packages/docker-port"
+Os pacotes são `@viralabs-dev/brabo-shared` e `@viralabs-dev/brabo-docker-port`, públicos no GitHub
+Packages (ADR 0270, que revisa o item 2 da ADR 0252). Saem juntos, com a mesma versão, a da tag:
+`vX.Y.Z-dev.N` (dist-tag `dev`) a cada merge na `dev` e `vX.Y.Z` (`latest`) na `main`. A publicação
+é só do workflow `publish.yml`, nunca à mão.
+
+Mesmo público, o registry do GitHub exige token para instalar. O `.npmrc` do consumidor leva só o
+registry; o token fica no `~/.npmrc` (PAT classic com `read:packages`) ou, no CI, no `GITHUB_TOKEN`:
+
+```ini
+@viralabs-dev:registry=https://npm.pkg.github.com
 ```
 
-As tags estáveis são `v1.0.0` e `v1.1.0`; a `dev` carimba pré-releases `v1.2.0-dev.N`
-(ex.: `v1.2.0-dev.2`), que trazem a operação `reiniciarApp` do `docker-port` (RN-1024).
-Troque o `path:` por `/packages/shared` conforme o pacote. Use a forma `git+https://…`: com o
-atalho `github:` o lockfile do runner perdia o `path`, e o `--frozen-lockfile` do CI instalava o
-repositório inteiro, sem o `src` do pacote. Os pacotes chegam como fonte TypeScript: com bundler
-(Vite, tsup, Bun) isso é transparente; o Node puro recusa remover tipos de `.ts` dentro de
-`node_modules`, e quem roda sem bundler precisa de um loader (o `brabo-runner` usa
-`module.registerHooks`). O Elixir baixa o `areas.json` e o `fluxo.yml` da mesma tag. Nunca fixe
-numa branch.
+O consumidor fixa a versão exata e importa pelo alias do pnpm, sem mexer nos imports:
+
+```json
+"@brabo/shared": "npm:@viralabs-dev/brabo-shared@1.3.0",
+"@brabo/docker-port": "npm:@viralabs-dev/brabo-docker-port@1.3.0"
+```
+
+O `shared` é só tipos (o `dist/index.js` sai vazio, RN-1037). O `docker-port` é ESM compilado.
+O Elixir e o web baixam `areas.json`, `fluxo.yml` e `docker-cli.json` por raw, na mesma tag.
+Nunca fixe numa branch.
 
 ## De onde vem cada arquivo
 
@@ -30,7 +39,7 @@ numa branch.
 
 ## Desenvolver
 
-`pnpm install && pnpm typecheck && pnpm test`. Branches permanentes: `dev` e `main`; tag só por
+`pnpm install && pnpm -r build && pnpm typecheck && pnpm test`. Branches permanentes: `dev` e `main`; tag só por
 workflow.
 
 ## Repositórios do Brabo

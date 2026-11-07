@@ -1,11 +1,11 @@
 # brabo-contracts
 
-Contratos compartilhados: `packages/shared` (tipos), `packages/docker-port` (porta de Docker e adaptador de CLI) e `packages/contracts` (`areas.json`, `fluxo.yml`). Só fonte TypeScript, sem build; consumo por TAG.
+Contratos compartilhados: `packages/shared` (tipos), `packages/docker-port` (porta de Docker e adaptador de CLI) e `packages/contracts` (`areas.json`, `fluxo.yml`). Pnpm workspace TypeScript com `dist`, publicado no GitHub Packages pela tag (ADR 0270).
 
 > Partido do `CLAUDE.md` do monorepo `daneiel/brabo` (hoje `brabo-legacy`, `dev` @ `1586158973`) na AT-708 (EP-033, ADR 0252). Copiado, não resumido: o que era de outro repo foi cortado e os caminhos do monorepo viraram a raiz deste repo (ou `brabo-<x>:caminho`). Caminhos sem prefixo que não existem aqui (`docker/`, `deploy/`, `install.sh`, `e2e/`, `scripts/dev/`, `scripts/ci/` fora do `brabo-ci`) moram no `brabo-infra`, no `brabo-qa` ou no `brabo-ci`. O resto das regras mora no `CLAUDE.md` da pasta-mãe (`brabo-workspace`, clonado em `~/dev/brabo/CLAUDE.md`) e no de cada repo irmão.
 
 ## Stack (decidida — não proponha alternativas)
-- `brabo-contracts`: pnpm workspace TS sem build, consumido por TAG pelos outros repos.
+- `brabo-contracts`: pnpm workspace TS com `dist`, publicado no GitHub Packages pela tag (ADR 0270, que revisa o item 2 da ADR 0252). Os pacotes são `@viralabs-dev/brabo-shared` e `@viralabs-dev/brabo-docker-port`, públicos, com a mesma versão (a da tag); o consumidor os importa por alias do pnpm (`@brabo/shared`). Quem instala precisa de token (`read:packages`). O `publish.yml` chama o `publish-npm.yml` do `brabo-ci`; ninguém publica à mão.
 - `packages/contracts/areas.json` é GERADO pelo `brabo-api` (`pnpm gerar:areas`); `fluxo.yml` e os dois pacotes moram aqui.
 
 ## Repositório, branches e PR (vale para todo repo `brabo-*`)
@@ -110,10 +110,17 @@ Contratos compartilhados: `packages/shared` (tipos), `packages/docker-port` (por
 ## Docker-port
 - `packages/docker-port`: a porta de Docker e o adaptador de CLI, consumidos
   por `brabo-runner` e `brabo-broker`. Runtime, e por isso NÃO cabe em
-  `packages/shared` (100% tipo, invariante travado por teste). Sem passo de
-  build: os dois consumidores o EMPACOTAM (`tsup`, `bun build --compile`), e é
-  por isso que a api não pode consumi-lo — `pnpm deploy` copia o pacote de
-  verdade e o Node recusa type stripping dentro de `node_modules`
+  `packages/shared` (100% tipo, invariante travado por teste: o `dist` do
+  `shared` não exporta valor, RN-1037). Tem build (`tsc -p tsconfig.build.json`
+  gera `dist` com `.js` e `.d.ts`) e é publicado como
+  `@viralabs-dev/brabo-docker-port` (ADR 0270). O motivo técnico antigo da
+  proibição à api (type stripping do Node dentro de `node_modules`) deixou de
+  existir, mas a regra continua: só o broker fala com o socket do Docker, e a
+  api NÃO consome o `docker-port` (`test/api-nao-consome-docker-port.spec.ts`
+  na api).
+- `packages/contracts/docker-cli.json` espelha `CHAMADAS_DE_CONTROLE_NO_START` e
+  `TIMEOUT_DE_CONTROLE_MS` do `docker-cli.ts`, para o engine (Elixir) ler por
+  raw na tag; um spec trava a igualdade (RN-1041).
 
 ## Documentação é parte da definição de pronto (permanente)
 - A doc deste repo mora em `docs/` e é em pt-BR (decisão do dono, 06/11/2026, que reverte a ADR 0260 e a AT-745), sem `docs/i18n/`: só o `brabo` é multilíngue. Ao alterar código, atualize a doc da área NA MESMA mudança e mostre o diff dela junto com o do código. Não pergunte se deve: faça. NUNCA crie `website/docs/`: o site é agregado pelo `brabo`, que lê a `docs/` de cada repositório.
