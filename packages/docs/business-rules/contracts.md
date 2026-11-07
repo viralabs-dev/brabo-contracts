@@ -688,7 +688,7 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
   `finally` — também quando a chamada falha ou cai —, e devolve a promessa ao
   card. Nenhum poll novo (RN-579/632).
 - **Onde:** `packages/docker-port/src/docker-cli.ts:838` (`argsDeCriacao`),
-  `apps/web/src/components/AcoesDoContainer.tsx:55` (`invalidateContainers`), `:172`
+  `apps/web/src/components/AcoesDoContainer.tsx:55` (`invalidateContainers`), `:166`
   (`aprovar`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` (`run` leva
   `--init` antes do comando), `apps/broker/src/contencao-do-brabo.spec.ts`
