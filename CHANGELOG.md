@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Doc (AT-845): a ref `apps/engine/lib/engine/sessions/engine_api_client.ex` (`opcoes_do_propose_action`) de `packages/docs/business-rules/contracts.md` passa de `:1985` para `:2006`, a linha atual no `brabo-engine` `dev`. Não muda código nem contrato.
 - Doc: o `README.md` segue o esqueleto didático de 8 seções do brabo-ci (AT-826), com o bloco do mapa gerado do `repos.yml` do brabo (AT-825). "Consumir o pacote" vira "Como é usado"; o exemplo de instalação usa a versão final `1.2.0` (a `1.3.0` citada antes não existe). Não muda código nem contrato.
 - CI: o `readme.yml` chama o `readme-esqueleto` e o `mapa-alinhado` do `brabo-ci`, pinados em `b5df60b` (`v1.4.0-dev.14`). São informativos, não exigidos pelo ruleset.
 
