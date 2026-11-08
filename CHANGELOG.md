@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CI: o check `Dependências de merge` (AT-787) entra pelo `dependencias.yml`, que chama o reutilizável `dependencias-de-merge.yml` do `brabo-ci` pinado em `c6d9394` (`v1.4.0-dev.10`). A PR declara `Depende-de: viralabs-dev/<repo>#<n>` no corpo e o check fica amarelo (`esperando …`) até cada PR citada estar mergeada. Sem linha `Depende-de` o check fica verde ("Sem dependências declaradas"). Não é exigido por ruleset ainda.
+
 - CI: o `ci.yml` chama o reutilizável `cadeia.yml` do `brabo-ci` (actionlint e pins, `ci_ref` obrigatório, AT-819) e repina todos os `uses:`, actions `vinculos` e `ci_ref` em `0a9eba8` (`v1.4.0-dev.5`, brabo-ci#39), com o comentário de versão no formato `vX.Y.Z-dev.N`. Perde o job `actionlint` copiado e o `.github/actionlint.yaml` (idêntico ao do brabo-ci).
 - Regressivo por funcionalidade (AT-769, B6): CLAUDE.md ganha a regra do card (o contracts é consumido por TAG, então a PR daqui só avisa; o regressivo roda na PR que sobe a TAG) e o `analista.md` ganha o item do catálogo.
 - Vínculos nos runs (AT-773, B5): o `publish.yml` ganha `run-name` (`publish {tag} ← tag do carimbo`) e um job `vinculos`, que lê a origem pela linha `Carimbo:` da mensagem da tag (o `publicar` é reutilizável, então não tem passo próprio para o Summary).
