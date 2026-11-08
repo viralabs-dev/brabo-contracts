@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- CI: o `ci.yml` chama o reutilizável `cadeia.yml` do `brabo-ci` (actionlint e pins, `ci_ref` obrigatório, AT-819) e repina todos os `uses:`, actions `vinculos` e `ci_ref` em `0a9eba8` (`v1.4.0-dev.5`, brabo-ci#39), com o comentário de versão no formato `vX.Y.Z-dev.N`. Perde o job `actionlint` copiado e o `.github/actionlint.yaml` (idêntico ao do brabo-ci).
 - Regressivo por funcionalidade (AT-769, B6): CLAUDE.md ganha a regra do card (o contracts é consumido por TAG, então a PR daqui só avisa; o regressivo roda na PR que sobe a TAG) e o `analista.md` ganha o item do catálogo.
 - Vínculos nos runs (AT-773, B5): o `publish.yml` ganha `run-name` (`publish {tag} ← tag do carimbo`) e um job `vinculos`, que lê a origem pela linha `Carimbo:` da mensagem da tag (o `publicar` é reutilizável, então não tem passo próprio para o Summary).
 - CI: repina os reutilizáveis do `brabo-ci` em `13f3697` (merge da ci#17, que inclui a ci#16): `ubuntu-26.04`, `client-id` no lugar de `app-id`, rótulo de família criado antes de aplicar, linha `Carimbo:` na tag e helper `vinculos` (AT-772, AT-773).

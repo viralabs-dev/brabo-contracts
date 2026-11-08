@@ -14,13 +14,13 @@ permissions:
   attestations: write
 jobs:
   publicar:
-    uses: viralabs-dev/brabo-ci/.github/workflows/publish-npm.yml@13f3697aaf3e4a151637755babb58422a44db303  # brabo-ci dev, merge da ci#17
+    uses: viralabs-dev/brabo-ci/.github/workflows/publish-npm.yml@0a9eba831fb82b9a20a5ad03bc2273a3ede69796  # v1.4.0-dev.5
     with:
       pacotes: |
         packages/shared
         packages/docker-port
       tag: ${{ github.ref_name }}
-      ci_ref: 13f3697aaf3e4a151637755babb58422a44db303
+      ci_ref: 0a9eba831fb82b9a20a5ad03bc2273a3ede69796  # v1.4.0-dev.5
   # Vínculos (AT-773): sem `needs`, só lê a origem da linha `Carimbo:` da tag anotada.
   vinculos:
     name: Vínculos (origem pela tag)
@@ -31,4 +31,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Vínculos do run
-        uses: viralabs-dev/brabo-ci/.github/actions/vinculos@13f3697aaf3e4a151637755babb58422a44db303  # brabo-ci#17 (AT-773)
+        uses: viralabs-dev/brabo-ci/.github/actions/vinculos@0a9eba831fb82b9a20a5ad03bc2273a3ede69796  # v1.4.0-dev.5 (AT-773)
