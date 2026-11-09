@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CI: repina o brabo-ci na release final `v1.4.0` (`5320046`), para a promoção `dev → main` de 09/11/2026 (a `main` só aceita release final).
+
 - Doc (AT-868): os 41 links das páginas de RN que apontavam para docs de outro repo (`../adr/…`, `api.md`) viram URL do arquivo no GitHub do repo dono, na `dev`. No site continuam relativos.
 - CI (AT-873): repina os reutilizáveis do `brabo-ci` em `a571e82` (`v1.4.0-dev.28`, ci#63), que linka cada repo na tabela "Onde se encaixa" do mapa. Este README não tem o bloco do mapa.
 
