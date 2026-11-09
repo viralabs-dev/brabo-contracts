@@ -1,10 +1,71 @@
 # brabo-contracts
 
-Contratos compartilhados do Brabo (ADR 0252): `packages/shared`, `packages/docker-port`
-(os dois publicados com `dist`), `packages/contracts` (`areas.json`, `fluxo.yml`, `docker-cli.json`) e
-`packages/docs` (as RNs dos contratos, em pt-BR, que o `brabo` lê ao montar o site).
+[![CI dev](https://img.shields.io/github/actions/workflow/status/viralabs-dev/brabo-contracts/ci.yml?branch=dev&label=CI%20dev&style=flat-square)](https://github.com/viralabs-dev/brabo-contracts/actions/workflows/ci.yml?query=branch%3Adev) [![CI main](https://img.shields.io/github/actions/workflow/status/viralabs-dev/brabo-contracts/ci.yml?branch=main&label=CI%20main&style=flat-square)](https://github.com/viralabs-dev/brabo-contracts/actions/workflows/ci.yml?query=branch%3Amain) [![dev](https://img.shields.io/github/v/tag/viralabs-dev/brabo-contracts?include_prereleases&filter=*-dev*&label=dev&color=informational&style=flat-square)](https://github.com/viralabs-dev/brabo-contracts/tags) [![Licença: MIT](https://img.shields.io/badge/licença-MIT-blue.svg?style=flat-square)](LICENSE) [![Documentação](https://img.shields.io/badge/docs-viralabs--dev.github.io/brabo-8A2BE2.svg?style=flat-square)](https://viralabs-dev.github.io/brabo/prd/) [![Apoie no Ko-fi](https://img.shields.io/badge/Ko--fi-me%20pague%20um%20caf%C3%A9-FF5E5B?logo=ko-fi&logoColor=white&style=flat-square)](https://ko-fi.com/daneiel)
 
-## Consumir o pacote
+Contratos compartilhados entre os repos do Brabo: uma cópia única de cada forma, lida por tag.
+
+## Para que existe
+
+Se cada repo guardasse a sua cópia dos tipos, das áreas e das operações de Docker, eles logo
+divergiriam. Este repo é a cópia única: dois pacotes npm (`shared`, só tipos, e `docker-port`, a
+porta de acesso ao Docker) e três arquivos de dados (`areas.json`, `fluxo.yml`, `docker-cli.json`).
+Quem consome pega a versão de uma tag, nunca de uma branch.
+
+## Onde se encaixa
+
+O Brabo é dividido em repositórios por camada (ADR 0252). O bloco abaixo sai do `repos.yml` do brabo
+e mostra de quem este repo depende e quem depende dele.
+
+<!-- mapa:inicio -->
+<!-- Gerado do repos.yml do brabo por brabo-ci:scripts/ci/mapa-dos-repos.ts. Não edite à mão. -->
+
+**brabo-contracts** — Contratos compartilhados — os pacotes `shared` e `docker-port`, `areas.json` e `fluxo.yml`. Consumido por TAG (pacote no GitHub Packages ou arquivo baixado por raw na mesma tag); uma tag nova pede bump em api, web, runner, broker, engine, qa e infra.
+
+| repo | propósito | como é usado | depende de | é usado por |
+|---|---|---|---|---|
+| [brabo](https://github.com/viralabs-dev/brabo) | Porta de entrada do produto — documentação agregada, site, instalador e release. | Quem instala usa o `install.sh` e as imagens e o binário das tags de `componentes.json`; o brabo-infra o clona nas aferições cruzadas. | brabo-api (imagem, doc), brabo-engine (imagem, doc), brabo-web (imagem, doc), brabo-broker (imagem, doc), brabo-runner (imagem, doc), brabo-infra (imagem, código, doc), brabo-contracts (contrato, doc), brabo-ci (doc, workflow), brabo-qa (doc) | brabo-ci (contrato), brabo-infra (código), brabo-workspace (código) |
+| [brabo-api](https://github.com/viralabs-dev/brabo-api) | API do produto (NestJS, Drizzle, PostgreSQL/pgvector) — schema, RBAC, LLM, metering e gates. | Imagem publicada por tag e consumida pelo brabo e pelo brabo-infra; o brabo-web, o brabo-engine e o brabo-qa leem o código ou o `openapi.json` dele. | brabo-contracts (contrato), brabo-infra (código), brabo-qa (workflow), brabo-ci (workflow) | brabo (imagem, doc), brabo-engine (código), brabo-web (contrato), brabo-contracts (contrato), brabo-infra (código), brabo-qa (código), brabo-workspace (código) |
+| [brabo-engine](https://github.com/viralabs-dev/brabo-engine) | Engine (Elixir/OTP, Phoenix, Oban) — agentes, sessões, gates e roteamento de runners. | Imagem publicada por tag, usada pelo brabo e pelo brabo-infra. | brabo-contracts (contrato), brabo-api (código), brabo-runner (código), brabo-qa (workflow), brabo-ci (workflow) | brabo (imagem, doc), brabo-infra (código), brabo-qa (código), brabo-workspace (código) |
+| [brabo-web](https://github.com/viralabs-dev/brabo-web) | Interface web (React 19, Vite) — telas, i18n e design system. | Imagem publicada por tag, usada pelo brabo e pelo brabo-infra. | brabo-contracts (contrato), brabo-api (contrato), brabo-qa (workflow), brabo-ci (workflow) | brabo (imagem, doc), brabo-infra (código), brabo-qa (código), brabo-workspace (código) |
+| [brabo-runner](https://github.com/viralabs-dev/brabo-runner) | CLI `brabo-runner` na máquina do usuário — PTY, container local e espelho. | Binário publicado por tag, instalado pelo brabo; o brabo-engine e o brabo-qa leem o código dele nos testes. | brabo-contracts (contrato), brabo-ci (workflow) | brabo (imagem, doc), brabo-engine (código), brabo-infra (código), brabo-qa (código), brabo-workspace (código) |
+| [brabo-broker](https://github.com/viralabs-dev/brabo-broker) | Único processo com o socket do Docker do servidor. | Imagem publicada por tag, usada pelo brabo e pelo brabo-infra. | brabo-contracts (contrato), brabo-qa (workflow), brabo-ci (workflow) | brabo (imagem, doc), brabo-infra (código), brabo-qa (código), brabo-workspace (código) |
+| **brabo-contracts** | Contratos compartilhados — os pacotes `shared` e `docker-port`, `areas.json` e `fluxo.yml`. | Consumido por TAG (pacote no GitHub Packages ou arquivo baixado por raw na mesma tag); uma tag nova pede bump em api, web, runner, broker, engine, qa e infra. | brabo-api (contrato), brabo-ci (workflow) | brabo (contrato, doc), brabo-api (contrato), brabo-engine (contrato), brabo-web (contrato), brabo-runner (contrato), brabo-broker (contrato), brabo-infra (código), brabo-qa (contrato), brabo-workspace (código) |
+| [brabo-ci](https://github.com/viralabs-dev/brabo-ci) | Workflows reutilizáveis e a política de PR, escada de aprovação, promoção, tag e Dependabot. | Cada repo chama `uses: viralabs-dev/brabo-ci/...@<sha>`, fixado por SHA. | brabo-qa (contrato, workflow), brabo (contrato) | brabo (doc, workflow), brabo-api (workflow), brabo-engine (workflow), brabo-web (workflow), brabo-runner (workflow), brabo-broker (workflow), brabo-contracts (workflow), brabo-infra (workflow), brabo-qa (workflow), brabo-workspace (código, workflow) |
+| [brabo-infra](https://github.com/viralabs-dev/brabo-infra) | Composes, Dockerfiles de integração, `deploy/k8s`, scripts de dev, release e cadeia de suprimentos. | O brabo clona o brabo-infra no ref de `componentes.json` para subir a instalação; o brabo-api e o brabo-qa o clonam no CI. | brabo-api (código), brabo-engine (código), brabo-web (código), brabo-broker (código), brabo-runner (código), brabo-contracts (código), brabo (código), brabo-qa (workflow), brabo-ci (workflow) | brabo (imagem, código, doc), brabo-api (código), brabo-qa (código), brabo-workspace (código) |
+| [brabo-qa](https://github.com/viralabs-dev/brabo-qa) | E2E de navegador (Playwright), golden-sets e catálogo de funcionalidades — o portão da `main`. | O brabo-ci dispara o `e2e-pr` dele e lê o `funcionalidades.yml`; api, engine, web, broker e infra o chamam como portão. | brabo-api (código), brabo-engine (código), brabo-web (código), brabo-runner (código), brabo-broker (código), brabo-infra (código), brabo-contracts (contrato), brabo-ci (workflow) | brabo (doc), brabo-api (workflow), brabo-engine (workflow), brabo-web (workflow), brabo-broker (workflow), brabo-ci (contrato, workflow), brabo-infra (workflow), brabo-workspace (código) |
+| [brabo-workspace](https://github.com/viralabs-dev/brabo-workspace) | Pasta-mãe `~/dev/brabo/` com os clones lado a lado e o `clonar-tudo.sh`. | Quem desenvolve roda `clonar-tudo.sh` uma vez; as sessões do Claude abrem nela. | brabo (código), brabo-api (código), brabo-engine (código), brabo-web (código), brabo-runner (código), brabo-broker (código), brabo-contracts (código), brabo-ci (código, workflow), brabo-infra (código), brabo-qa (código) | — |
+
+```mermaid
+flowchart LR
+  brabo["brabo"]
+  brabo_api["brabo-api"]
+  brabo_engine["brabo-engine"]
+  brabo_web["brabo-web"]
+  brabo_runner["brabo-runner"]
+  brabo_broker["brabo-broker"]
+  brabo_contracts["brabo-contracts"]
+  brabo_ci["brabo-ci"]
+  brabo_infra["brabo-infra"]
+  brabo_qa["brabo-qa"]
+  brabo_workspace["brabo-workspace"]
+  brabo -->|contrato| brabo_contracts
+  brabo -->|doc| brabo_contracts
+  brabo_api -->|contrato| brabo_contracts
+  brabo_engine -->|contrato| brabo_contracts
+  brabo_web -->|contrato| brabo_contracts
+  brabo_runner -->|contrato| brabo_contracts
+  brabo_broker -->|contrato| brabo_contracts
+  brabo_contracts -->|contrato| brabo_api
+  brabo_contracts -->|workflow| brabo_ci
+  brabo_infra -->|código| brabo_contracts
+  brabo_qa -->|contrato| brabo_contracts
+  brabo_workspace -->|código| brabo_contracts
+  classDef atual fill:#fde68a,stroke:#b45309,color:#000
+  class brabo_contracts atual
+```
+<!-- mapa:fim -->
+
+## Como é usado
 
 Os pacotes são `@viralabs-dev/brabo-shared` e `@viralabs-dev/brabo-docker-port`, públicos no GitHub
 Packages (ADR 0270, que revisa o item 2 da ADR 0252). Saem juntos, com a mesma versão, a da tag:
@@ -18,60 +79,74 @@ registry; o token fica no `~/.npmrc` (PAT classic com `read:packages`) ou, no CI
 @viralabs-dev:registry=https://npm.pkg.github.com
 ```
 
-O consumidor fixa a versão exata e importa pelo alias do pnpm, sem mexer nos imports:
+O consumidor fixa a versão exata e importa pelo alias do pnpm, sem mexer nos imports. Com a versão
+final `1.2.0`:
 
-```json
-"@brabo/shared": "npm:@viralabs-dev/brabo-shared@1.3.0",
-"@brabo/docker-port": "npm:@viralabs-dev/brabo-docker-port@1.3.0"
+```bash
+pnpm add "@brabo/shared@npm:@viralabs-dev/brabo-shared@1.2.0" "@brabo/docker-port@npm:@viralabs-dev/brabo-docker-port@1.2.0"
 ```
 
 O `shared` é só tipos (o `dist/index.js` sai vazio, RN-1037). O `docker-port` é ESM compilado.
-O Elixir e o web baixam `areas.json`, `fluxo.yml` e `docker-cli.json` por raw, na mesma tag.
+O Elixir e a web baixam `areas.json`, `fluxo.yml` e `docker-cli.json` por raw, na mesma tag.
 Nunca fixe numa branch.
 
-## De onde vem cada arquivo
+`packages/contracts/areas.json` é GERADO pelo `brabo-api` (`pnpm gerar:areas`, que escreve
+`contracts/areas.json` lá). Quando a lista de áreas muda na api, copie o arquivo para cá e corte uma
+tag nova; a web e a engine conferem a cópia delas contra a tag.
 
-- `packages/contracts/areas.json` é GERADO pelo `brabo-api` (`pnpm gerar:areas`, que escreve
-  `contracts/areas.json` lá). Quando a lista de áreas muda na api, copie o arquivo para cá e corte
-  uma tag nova; a web e a engine conferem a cópia delas contra a tag.
-- `packages/contracts/fluxo.yml`, `packages/shared`, `packages/docker-port` e `packages/docs`
-  moram aqui.
+## Como desenvolver
 
-## Desenvolver
+Pré-requisitos: Node 26 e pnpm 11.3.0, as mesmas versões do CI. Rode na raiz, nesta ordem, o que o
+job `pacotes` do `ci.yml` roda:
 
-`pnpm install && pnpm -r build && pnpm typecheck && pnpm test`. Branches permanentes: `dev` e `main`; tag só por
-workflow.
+```bash
+pnpm install --frozen-lockfile
+pnpm -r build
+pnpm typecheck
+pnpm test
+pnpm -r exec npm pack --dry-run
+```
 
-## Repositórios do Brabo
+Cada passo sai com código 0; o último mostra o que seria publicado (só `dist`).
 
-O Brabo é dividido em repositórios por camada (ADR 0252), e a documentação central está no
-[brabo](https://github.com/viralabs-dev/brabo) e em https://viralabs-dev.github.io/brabo/prd/.
+## O que o CI garante
 
-- **Depende de:** [brabo-ci](https://github.com/viralabs-dev/brabo-ci) (política de PR e
-  carimbo das tags). Recebe o `areas.json` gerado pela
-  [brabo-api](https://github.com/viralabs-dev/brabo-api).
-- **É usado por:** [brabo-api](https://github.com/viralabs-dev/brabo-api),
-  [brabo-broker](https://github.com/viralabs-dev/brabo-broker),
-  [brabo-runner](https://github.com/viralabs-dev/brabo-runner),
-  [brabo-web](https://github.com/viralabs-dev/brabo-web),
-  [brabo-engine](https://github.com/viralabs-dev/brabo-engine),
-  [brabo-infra](https://github.com/viralabs-dev/brabo-infra) e
-  [brabo](https://github.com/viralabs-dev/brabo).
+| Check | Obrigatório | O que prova |
+| --- | --- | --- |
+| `pr-police / Política de branches` | sim (ruleset) | o nome da branch, a origem e o destino da PR seguem a política do brabo-ci. |
+| `escada / Escada de aprovação` | sim (ruleset) | a PR tem as aprovações do degrau (`dev` ou `main`). |
+| `pacotes` (`ci.yml`, "Typecheck e testes") | não | build, typecheck, testes e o `npm pack --dry-run` dos dois pacotes. |
+| `cadeia` (`ci.yml`) | não | actionlint dos workflows e que cada `uses:` do brabo-ci está fixado por SHA de uma tag. |
+| `dependencias` | não | a PR espera as PRs citadas em `Depende-de:` no corpo. |
+| `readme` | não | o README segue o esqueleto de 8 seções e o bloco do mapa está em dia. |
 
-| Repositório | Papel |
-| --- | --- |
-| [brabo](https://github.com/viralabs-dev/brabo) | Porta de entrada: documentação central, instalador (`install.sh`) e release do produto. |
-| [brabo-api](https://github.com/viralabs-dev/brabo-api) | API (NestJS, Drizzle, PostgreSQL com pgvector). |
-| [brabo-engine](https://github.com/viralabs-dev/brabo-engine) | Engine (Elixir/OTP, Phoenix, Oban): agentes, gates, sessões e runners. |
-| [brabo-web](https://github.com/viralabs-dev/brabo-web) | Interface web (React, Vite, TanStack, Tailwind). |
-| [brabo-runner](https://github.com/viralabs-dev/brabo-runner) | CLI que roda na máquina do usuário e se conecta à engine. |
-| [brabo-broker](https://github.com/viralabs-dev/brabo-broker) | Broker de containers: o único processo que fala com o Docker do servidor. |
-| [brabo-contracts](https://github.com/viralabs-dev/brabo-contracts) | Contratos compartilhados (`shared`, `docker-port`, `contracts`). |
-| [brabo-infra](https://github.com/viralabs-dev/brabo-infra) | Composes, Kubernetes, backup e restore, `docker-bake.hcl` e as aferições cruzadas. |
-| [brabo-ci](https://github.com/viralabs-dev/brabo-ci) | Workflows reutilizáveis: política de PR, escada de aprovação, promoção e carimbo de versão. |
-| [brabo-qa](https://github.com/viralabs-dev/brabo-qa) | Testes entre repositórios: E2E de navegador, golden-sets e instrumentos de medição. |
-| [brabo-workspace](https://github.com/viralabs-dev/brabo-workspace) | Pasta-mãe que reúne os clones `brabo-*` lado a lado. |
+Um `publish.yml` roda a cada tag `v*`: publica os dois pacotes no GitHub Packages. Não é check de PR.
+
+## Documentação
+
+- [`packages/docs/business-rules/contracts.md`](packages/docs/business-rules/contracts.md): as RNs
+  dos contratos, em pt-BR. O brabo lê este arquivo ao montar o site.
+- [`CHANGELOG.md`](CHANGELOG.md) (o que mudou em cada tag) e [`CLAUDE.md`](CLAUDE.md) (regras deste repo).
+- Documentação central do Brabo: https://viralabs-dev.github.io/brabo/prd/.
+
+## Como replicar no seu projeto
+
+Do que este repo serve a outro projeto:
+
+- **Os dois pacotes**, instalados pela tag como em [Como é usado](#como-é-usado).
+- **O padrão de publicação:** `publishConfig` com o GitHub Packages e `files: ["dist"]` no
+  `package.json`, e um `publish.yml` que chama o `publish-npm.yml` do brabo-ci a partir da tag.
+- **Os três arquivos de dados**, baixados por raw na mesma tag.
+
+Para o seu projeto consumir os pacotes: ponha o `@viralabs-dev:registry=https://npm.pkg.github.com`
+no `.npmrc`, dê ao ambiente um token com `read:packages` e rode o `pnpm add` do exemplo, trocando a
+versão pela da tag. O passo a passo de adoção da política de PR e das tags está no
+[guia de adoção do brabo-ci](https://github.com/viralabs-dev/brabo-ci/blob/v1.4.0-dev.14/scripts/ci/docs/tutorials/adotar.md).
 
 ## Apoie
 
 Se o projeto te ajuda, você pode [pagar um café no Ko-fi](https://ko-fi.com/daneiel).
+
+## Licença
+
+MIT. Veja o arquivo [LICENSE](LICENSE).

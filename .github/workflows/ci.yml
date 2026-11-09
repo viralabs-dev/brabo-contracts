@@ -7,18 +7,12 @@ permissions:
   contents: read
 # Liga aos workflows reutilizáveis do brabo-ci depois da AT-695.
 jobs:
-  actionlint:
-    name: actionlint
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - name: Instalar o actionlint
-        run: |
-          curl -fsSL -o /tmp/al.tgz https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
-          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/al.tgz" | sha256sum -c -
-          tar -xzf /tmp/al.tgz -C /tmp actionlint
-      - run: /tmp/actionlint -color
+  # Actionlint e pins do brabo-ci (AT-819). Não é check obrigatório.
+  cadeia:
+    name: Cadeia (actionlint e pins)
+    uses: viralabs-dev/brabo-ci/.github/workflows/cadeia.yml@53200467cadc73c5c23b90545474d4948764932f  # v1.4.0
+    with:
+      ci_ref: 53200467cadc73c5c23b90545474d4948764932f  # v1.4.0
   pacotes:
     name: Typecheck e testes
     runs-on: ubuntu-26.04

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- CI: repina o brabo-ci na release final `v1.4.0` (`5320046`), para a promoção `dev → main` de 09/11/2026 (a `main` só aceita release final).
+
+- Doc (AT-868): os 41 links das páginas de RN que apontavam para docs de outro repo (`../adr/…`, `api.md`) viram URL do arquivo no GitHub do repo dono, na `dev`. No site continuam relativos.
+- CI (AT-873): repina os reutilizáveis do `brabo-ci` em `a571e82` (`v1.4.0-dev.28`, ci#63), que linka cada repo na tabela "Onde se encaixa" do mapa. Este README não tem o bloco do mapa.
+
+- Docs (AT-867): a linha de badges logo abaixo do título mostra o CI da `dev` e o da `main`, a versão da `dev` (última tag `-dev`), licença MIT, documentação e Ko-fi, no estilo do `brabo` Sem release publicada, o badge de versão da `main` não entra.
+
+- Docs (AT-848): o bloco do mapa do README é regenerado do `repos.yml` do brabo, que ganha a aresta `brabo → brabo-contracts` e a prova em `{arquivo, trecho}` (`mapa-alinhado` volta a bater).
+- CI: repina todos os `uses:` e `ci_ref` do `brabo-ci` em `6390ef5` (`v1.4.0-dev.17`, ci#53), que aceita a prova `{arquivo, trecho}` do `mapa-dos-repos.ts`; o pin antigo dá `throw` no formato novo e o `mapa-alinhado` quebra.
+- Doc (AT-845): a ref `apps/engine/lib/engine/sessions/engine_api_client.ex` (`opcoes_do_propose_action`) de `packages/docs/business-rules/contracts.md` passa de `:1985` para `:2006`, a linha atual no `brabo-engine` `dev`. Não muda código nem contrato.
+- Doc: o `README.md` segue o esqueleto didático de 8 seções do brabo-ci (AT-826), com o bloco do mapa gerado do `repos.yml` do brabo (AT-825). "Consumir o pacote" vira "Como é usado"; o exemplo de instalação usa a versão final `1.2.0` (a `1.3.0` citada antes não existe). Não muda código nem contrato.
+- CI: o `readme.yml` chama o `readme-esqueleto` e o `mapa-alinhado` do `brabo-ci`, pinados em `b5df60b` (`v1.4.0-dev.14`). São informativos, não exigidos pelo ruleset.
+
+- CI: o check `Dependências de merge` (AT-787) entra pelo `dependencias.yml`, que chama o reutilizável `dependencias-de-merge.yml` do `brabo-ci` pinado em `c6d9394` (`v1.4.0-dev.10`). A PR declara `Depende-de: viralabs-dev/<repo>#<n>` no corpo e o check fica amarelo (`esperando …`) até cada PR citada estar mergeada. Sem linha `Depende-de` o check fica verde ("Sem dependências declaradas"). Não é exigido por ruleset ainda.
+
+- CI: o `ci.yml` chama o reutilizável `cadeia.yml` do `brabo-ci` (actionlint e pins, `ci_ref` obrigatório, AT-819) e repina todos os `uses:`, actions `vinculos` e `ci_ref` em `0a9eba8` (`v1.4.0-dev.5`, brabo-ci#39), com o comentário de versão no formato `vX.Y.Z-dev.N`. Perde o job `actionlint` copiado e o `.github/actionlint.yaml` (idêntico ao do brabo-ci).
 - Regressivo por funcionalidade (AT-769, B6): CLAUDE.md ganha a regra do card (o contracts é consumido por TAG, então a PR daqui só avisa; o regressivo roda na PR que sobe a TAG) e o `analista.md` ganha o item do catálogo.
 - Vínculos nos runs (AT-773, B5): o `publish.yml` ganha `run-name` (`publish {tag} ← tag do carimbo`) e um job `vinculos`, que lê a origem pela linha `Carimbo:` da mensagem da tag (o `publicar` é reutilizável, então não tem passo próprio para o Summary).
 - CI: repina os reutilizáveis do `brabo-ci` em `13f3697` (merge da ci#17, que inclui a ci#16): `ubuntu-26.04`, `client-id` no lugar de `app-id`, rótulo de família criado antes de aplicar, linha `Carimbo:` na tag e helper `vinculos` (AT-772, AT-773).

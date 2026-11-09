@@ -27,21 +27,21 @@ prova, declara-se `false` e degrada (mesmo critério dos ADRs 0041/0042).
   100% tipo
 - **Teste:** suite de contrato única, `test/contract/git-provider.contract.ts`,
   rodada contra os três providers
-- **Origem:** [ADR 0001](../adr/0001-git-provider-contract-shape.md)
+- **Origem:** [ADR 0001](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0001-git-provider-contract-shape.md)
 
 ### RN-087 — O Dev Lead é o único endereço externo da execução {#rn-087}
 
 Existe um agente `dev-lead`, conversacional, que recebe o handoff do Arquiteto
-(desde a [RN-672](api.md#rn-672), da Infra, com o container do
+(desde a [RN-672](https://github.com/viralabs-dev/brabo-api/blob/dev/docs/business-rules/api.md#rn-672), da Infra, com o container do
 projeto `running`) e propõe o **plano de execução**: quantos agentes por módulo e por quê. Ele não
 escreve código — distribui trabalho e responde por ele.
 
-**Antes dele, a frase "quem decide é o lead" da [RN-083](api.md#rn-083) não tinha
+**Antes dele, a frase "quem decide é o lead" da [RN-083](https://github.com/viralabs-dev/brabo-api/blob/dev/docs/business-rules/api.md#rn-083) não tinha
 dono.** O Arquiteto terminava e a execução subia por um botão, sem ninguém no
 meio para avaliar quanto trabalho havia.
 
 **Os `dev-<modulo>` deixaram de ser endereçáveis por handoff.** Isso não é
-exceção nova: é a regra do [ADR 0038](../adr/0038-hierarquia-de-agentes.md) —
+exceção nova: é a regra do [ADR 0038](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0038-hierarquia-de-agentes.md) —
 handoff externo endereça só lead de área ou agente sem área — passando a valer
 para o dev como já valia para QA e Infra. Enquanto não havia Dev Lead, eles
 eram agentes SEM área e por isso alvos válidos; virando membros, deixam de ser.
@@ -55,7 +55,7 @@ só. A primeira versão repetia essa exclusão em três pontos, e a verificaçã
 mutação mostrou que nenhuma das cópias era alcançável por teste: cada uma
 sobrevivia à mutação da outra.
 
-**O plano é `proposed_action` (revisado pelo [ADR 0086](../adr/0086-dev-lead-plano-suspende-para-aprovacao.md), [RN-284](engine.md#rn-284)).**
+**O plano é `proposed_action` (revisado pelo [ADR 0086](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0086-dev-lead-plano-suspende-para-aprovacao.md), [RN-284](https://github.com/viralabs-dev/brabo-engine/blob/dev/docs/business-rules/engine.md#rn-284)).**
 Até essa mudança o plano virava EVENTO simples, sem aprovação: o argumento era
 que propor não tem efeito externo — o gasto acontece quando os agentes sobem,
 e é lá que o teto cobra autorização; transformar a proposta em ação a decidir
@@ -99,8 +99,8 @@ plano meio proposto não teria como ser retratado.
   `apps/api/test/domain/agents/agent-areas.spec.ts` (`o dev de módulo DEIXOU de
   ser endereçável`, `` `dev-lead` É endereçável, apesar do prefixo ``) e
   `test/application/use-cases/agents/offer-infra-handoff.use-case.spec.ts`
-- **Origem:** [ADR 0053](../adr/0053-dev-lead-e-paralelismo-autorizado.md), FASE 14d;
-  o mecanismo de aprovação revisado pelo [ADR 0086](../adr/0086-dev-lead-plano-suspende-para-aprovacao.md)
+- **Origem:** [ADR 0053](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0053-dev-lead-e-paralelismo-autorizado.md), FASE 14d;
+  o mecanismo de aprovação revisado pelo [ADR 0086](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0086-dev-lead-plano-suspende-para-aprovacao.md)
 
 ### RN-110 — `blame` é a 13ª operação do `GitProviderContract`, com o mesmo vocabulário de ausência das outras leituras {#rn-110}
 
@@ -132,7 +132,7 @@ arquivo genuinamente enorme — já cortado por bytes na rota de conteúdo, mas
   exercitado pelos três specs de provider — o do `local` contra git de
   verdade — e `read-project-code.use-case.spec.ts` (bloco "blame")
 - **Origem:** FASE 26b (fundação das pendências declaradas da FASE 26/
-  [ADR 0060](../adr/0060-superficie-de-leitura-de-codigo.md))
+  [ADR 0060](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0060-superficie-de-leitura-de-codigo.md))
 
 ### RN-111 — `listPullRequests` é a 14ª operação do `GitProviderContract`; a lista navegável abre o mesmo diff por id {#rn-111}
 
@@ -219,7 +219,7 @@ de chamadas por abertura do dropdown.
 `packages/contracts/fluxo.yml` declarava o papel `qa-estrategia` como `proposto`, com o
 critério de separação escrito no próprio registro: "pode ser o próprio
 qa-lead em segundo MOMENTO, não necessariamente agente novo — a separação é
-de entregável". O [ADR 0090](../adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
+de entregável". O [ADR 0090](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
 constrói exatamente isso: `Engine.Gates.QaEstrategiaAgent` é módulo SEM
 ESTADO (não é `GenServer`), acionado por `Engine.Gates.QaLeadServer.run_design/3`
 — um ponto de entrada NOVO e ADITIVO no MESMO processo `qa-lead`, sem tocar
@@ -228,7 +228,7 @@ ESTADO (não é `GenServer`), acionado por `Engine.Gates.QaLeadServer.run_design
 
 **O contexto é LEVE, e é aí que a separação de entregável aparece.**
 `Engine.Gates.QaEstrategiaContext.fetch/3` busca SÓ story (de
-`EngineApiClient.list_backlog/1`, a árvore que o PO já lê — [RN-164](engine.md#rn-164))
+`EngineApiClient.list_backlog/1`, a árvore que o PO já lê — [RN-164](https://github.com/viralabs-dev/brabo-engine/blob/dev/docs/business-rules/engine.md#rn-164))
 e `module_map` vigente (de `EngineApiClient.get_infra_context/2`, o MESMO
 `GetInfraContextUseCase` que o Infra Lead consome, aqui só pelo campo
 `moduleMap`) — SEM `dev_state`, SEM `worktree_path`: o gate `implementavel`
@@ -245,7 +245,7 @@ suspensão/retomada, ao contrário do resto da área de QA.
 
 **O teto de iterações fica em 8 (conversacional), não 60 (gate) — de
 propósito, não lacuna.** Este agente roda SEM `token_budget_micros` — não há
-task nem budget de task ainda. O critério da [RN-085](engine.md#rn-085) não é "quem
+task nem budget de task ainda. O critério da [RN-085](https://github.com/viralabs-dev/brabo-engine/blob/dev/docs/business-rules/engine.md#rn-085) não é "quem
 trabalha muito": é "o que segura o gasto além do teto de iterações". Sem
 budget por baixo, subir o teto multiplicaria o pior caso sem nada para
 conter — a MESMA razão pela qual `infra-workflows` fica em 8 mesmo usando
@@ -258,12 +258,12 @@ escopo desta frente, na `spec/0` que o modelo lê, não uma validação em
 código) — vira o artefato `artifact.plano_de_teste`
 (`ArtifactEmitter.emit/5`, schema validado, `criteriosExecutaveis` não pode
 ser vazio), no event log da MESMA sessão que chamou `run_design/3` — é lá
-que `assess_implementability` ([RN-340](api.md#rn-340)) o lê depois. Falha
+que `assess_implementability` ([RN-340](https://github.com/viralabs-dev/brabo-api/blob/dev/docs/business-rules/api.md#rn-340)) o lê depois. Falha
 (limite de iterações, orçamento, modelo que para sem emitir) NUNCA é
 silenciosa: `agent.error` durável com origem, mesma régua da
-[RN-059](engine.md#rn-059).
+[RN-059](https://github.com/viralabs-dev/brabo-engine/blob/dev/docs/business-rules/engine.md#rn-059).
 
-**Desde a [RN-674](engine.md#rn-674) (ADR 0192) o MOMENTO mudou.** O segundo momento
+**Desde a [RN-674](https://github.com/viralabs-dev/brabo-engine/blob/dev/docs/business-rules/engine.md#rn-674) (ADR 0192) o MOMENTO mudou.** O segundo momento
 continua sendo do `qa-lead`, sem agente novo, e continua nunca suspendendo;
 mas roda DEPOIS da entrega, no começo do ciclo de `run/2`, com o worktree do
 dev e os arquivos do diff — `run_design/3` e `QaEstrategiaContext` saíram, e
@@ -271,7 +271,7 @@ o artefato ganhou `taskId`. O teto continua 8, agora COM o orçamento da task
 por baixo.
 
 - **Onde:** `apps/engine/lib/engine/gates/qa_estrategia_agent.ex`,
-  `qa_lead_server.ex` (`run_area/3`, desde a [RN-674](engine.md#rn-674)),
+  `qa_lead_server.ex` (`run_area/3`, desde a [RN-674](https://github.com/viralabs-dev/brabo-engine/blob/dev/docs/business-rules/engine.md#rn-674)),
   `tools/emit_plano_de_teste.ex`, `hooks/termination_plano_de_teste.ex`;
   `apps/engine/lib/engine/harness/artifact_schemas.ex` (`plano_de_teste`);
   `apps/engine/lib/engine/harness/iteracoes.ex` (SEM cláusula nova, ver
@@ -280,7 +280,7 @@ por baixo.
   `qa_lead_server_test.exs` (describe "plano de teste da entrega (ADR 0192)"), `apps/engine/test/engine/harness/artifact_schemas_test.exs`
   (describe "plano_de_teste"), `iteracoes_test.exs` ("qa-estrategia é
   conversacional DE PROPÓSITO")
-- **Origem:** [ADR 0090](../adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
+- **Origem:** [ADR 0090](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0090-qa-estrategia-e-appsec-segundo-momento.md)
 
 ---
 
@@ -300,7 +300,7 @@ apagar na próxima limpeza.
 - **Onde:** `apps/api/scripts/relatorio-seguranca-runtime.ts`,
   `apps/api/package.json` (`relatorio:seguranca-runtime`)
 - **Teste:** `apps/api/test/scripts/relatorio-seguranca-runtime.spec.ts`
-- **ADR:** [0091](../adr/0091-secops-runtime-relatorio-de-abuso.md)
+- **ADR:** [0091](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0091-secops-runtime-relatorio-de-abuso.md)
 
 ---
 
@@ -338,7 +338,7 @@ LINKA para o que já existe, nunca duplica.
   puras — `parseArgs`, `formatarIdade`, `formatarBytes` — mesmo recorte de
   `medir-execucao.spec.ts`: a parte que fala com o banco é exercitada rodando
   o script contra um banco real)
-- **ADR:** [0092](../adr/0092-platform-relatorio-de-telemetria-sob-demanda.md)
+- **ADR:** [0092](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0092-platform-relatorio-de-telemetria-sob-demanda.md)
 
 ### RN-386 — O relatório de telemetria declara, sem inventar, o que NÃO mede {#rn-386}
 
@@ -364,7 +364,7 @@ mudança).
 - **Teste:** cobertura indireta — a seção é texto fixo verificado por leitura
   do arquivo; não há verdade condicional a testar aqui (nada a errar entre
   "medido" e "não medido" além do texto em si)
-- **ADR:** [0092](../adr/0092-platform-relatorio-de-telemetria-sob-demanda.md)
+- **ADR:** [0092](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0092-platform-relatorio-de-telemetria-sob-demanda.md)
 
 ---
 
@@ -382,13 +382,13 @@ de rodada única) que justifica `parecerArtifactId`.
 O Dev Lead não tem esse padrão: a ativação de um `dev-<modulo>` acontece do
 lado API, em `AcceptParallelizationUseCase.execute` — chamada tanto pelo
 caminho direto (`RequestParallelizationUseCase`, abaixo do teto de sessão da
-[RN-083](api.md#rn-083)) quanto pelo aprovado (`ExecuteParallelizationUseCase`,
+[RN-083](https://github.com/viralabs-dev/brabo-api/blob/dev/docs/business-rules/api.md#rn-083)) quanto pelo aprovado (`ExecuteParallelizationUseCase`,
 depois que o usuário aprova a `proposed_action` tipo `parallelize`). A
 gravação entrou DENTRO desse método — cobre os dois caminhos de graça,
 porque os dois já convergem ali —, com `status: 'completed'` REDEFINIDO para
 esta área: significa "a delegação foi EFETIVADA" (o agente subiu), não "o
 subagente terminou e emitiu parecer" como em QA/Infra (decisão registrada no
-[ADR 0094](../adr/0094-delegacao-dev-lead-vira-dado.md)).
+[ADR 0094](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0094-delegacao-dev-lead-vira-dado.md)).
 
 `parecerArtifactId` aponta para o `id` do evento `artifact.module_map` mais
 recente e vigente do projeto — obtido de
@@ -416,7 +416,7 @@ gravação auxiliar.
   `area: 'dev'` apontando pro module_map mais recente; sem module_map não
   grava (e não lança); `RecordDelegationUseCase` falhando não derruba a
   ativação
-- **ADR:** [0094](../adr/0094-delegacao-dev-lead-vira-dado.md)
+- **ADR:** [0094](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0094-delegacao-dev-lead-vira-dado.md)
 
 ---
 
@@ -434,8 +434,8 @@ autovalidação, não gate de verdade.
 
 ### RN-406 — O gate `necessidade-validada` se fecha com um clique SEPARADO do usuário, nunca com o Criativo se autovalidando {#rn-406}
 
-> **Revista pelo [ADR 0185](../adr/0185-estou-pronto-fecha-os-dois-gates.md)
-> ([RN-657](api.md#rn-657)), por decisão do dono em 30/09.** O clique deixou de ser
+> **Revista pelo [ADR 0185](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0185-estou-pronto-fecha-os-dois-gates.md)
+> ([RN-657](https://github.com/viralabs-dev/brabo-api/blob/dev/docs/business-rules/api.md#rn-657)), por decisão do dono em 30/09.** O clique deixou de ser
 > SEPARADO: "Estou pronto — a necessidade está validada" grava
 > `readiness.confirmed` e `necessity.validated` no mesmo POST, com o
 > `product_brief` produzido DEPOIS do clique (`productBriefId: null`). O botão
@@ -448,7 +448,7 @@ autovalidação, não gate de verdade.
 
 `SessionPage.tsx` ganha um terceiro botão de confirmação, no MESMO padrão
 interacional de "Estou pronto para produzir" (RN-142) e "Confirmar
-arquitetura pronta" ([RN-160](web.md#rn-160)): "Confirmar necessidade validada"
+arquitetura pronta" ([RN-160](https://github.com/viralabs-dev/brabo-web/blob/dev/docs/business-rules/web.md#rn-160)): "Confirmar necessidade validada"
 (`handleValidateNecessity`) chama `POST
 .../agents/criativo/validate-necessity`, que grava `necessity.validated`
 com `payload.productBriefId` apontando para o `artifact.product_brief`
@@ -463,7 +463,7 @@ do Criativo, o momento em que o trabalho dele já entregou um artefato
 concreto. `ValidateNecessityUseCase` revalida a mesma pré-condição no
 BACKEND (`SessionEventRepository.listByTypeInSession(sessionId,
 'artifact.product_brief')`, pega o último por `seq`) — a UI desabilitada
-sozinha não bastaria, mesma lição da [RN-404](api.md#rn-404).
+sozinha não bastaria, mesma lição da [RN-404](https://github.com/viralabs-dev/brabo-api/blob/dev/docs/business-rules/api.md#rn-404).
 
 Diferente de `OfferInfraHandoffUseCase` (RN-160), esta confirmação NÃO
 sinaliza o engine: o handoff Criativo→PO já aconteceu dentro do próprio
@@ -491,7 +491,7 @@ real de código os impede de serem pulados). `packages/contracts/fluxo.yml` (pap
   `apps/web/src/routes/SessionPage.validar-necessidade.test.tsx` — botão
   desabilitado sem `product_brief`, habilitado com ele, some depois de
   `necessity.validated`
-- **ADR:** [0095](../adr/0095-gate-necessidade-validada.md)
+- **ADR:** [0095](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0095-gate-necessidade-validada.md)
 
 ---
 
@@ -500,17 +500,17 @@ real de código os impede de serem pulados). `packages/contracts/fluxo.yml` (pap
 O PO ganhou uma TERCEIRA ferramenta de leitura — `listar_metricas_de_produto`
 (`:direct`, sem parâmetro nenhum) — servida por
 `GET /internal/projects/:projectId/product-metrics`, mesmo desenho das duas
-irmãs da [RN-164](engine.md#rn-164): escopo fechado no projeto, sem termo de busca,
+irmãs da [RN-164](https://github.com/viralabs-dev/brabo-engine/blob/dev/docs/business-rules/engine.md#rn-164): escopo fechado no projeto, sem termo de busca,
 sem paginação.
 
 `packages/contracts/fluxo.yml` (papel `po`, entrada `metricas-de-produto`) declarava
-`status: lacuna` desde o [ADR 0089](../adr/0089-analytics-e-delivery-metricas-como-relatorio.md),
+`status: lacuna` desde o [ADR 0089](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0089-analytics-e-delivery-metricas-como-relatorio.md),
 que já tinha entregue o DADO — o script `pnpm --filter api analise:funil`
 mede o funil real sessão → commit → PR → merge, o lead time real e a
 deployment frequency real a partir de `proposed_actions`. O que faltava era
 só o MECANISMO: o PO nunca tinha como reler esse relatório dentro do turno.
 Fecha o item B4 da auditoria `fluxo.yml` × código
-([docs/explanation/auditoria-fluxo-vs-codigo.md](../explanation/auditoria-fluxo-vs-codigo.md)) —
+([docs/explanation/auditoria-fluxo-vs-codigo.md](https://github.com/viralabs-dev/brabo/blob/dev/docs/explanation/auditoria-fluxo-vs-codigo.md)) —
 a ÚLTIMA pendência da tabela "Backlog do modelo de time"
 (docs/explanation/backlog.md), que fica vazia depois desta.
 
@@ -545,9 +545,9 @@ lacuna nenhuma.
   importando de `scripts/analise-funil.ts`, sem alteração);
   `apps/engine/test/engine/harness/tools/listar_metricas_de_produto_test.exs`;
   `apps/engine/test/engine/agents/po_server_test.exs`
-- **Origem:** mesmo padrão da [RN-164](engine.md#rn-164) (leitura de agente escopada
+- **Origem:** mesmo padrão da [RN-164](https://github.com/viralabs-dev/brabo-engine/blob/dev/docs/business-rules/engine.md#rn-164) (leitura de agente escopada
   ao projeto, sem efeito externo, sem `proposed_action`); o dado é do
-  [ADR 0089](../adr/0089-analytics-e-delivery-metricas-como-relatorio.md) — esta RN só
+  [ADR 0089](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0089-analytics-e-delivery-metricas-como-relatorio.md) — esta RN só
   fecha o mecanismo de leitura que faltava.
 
 ## O repositório nasce no aceite do handoff ao Arquiteto, e a execução não começa sem ele (RN-582)
@@ -598,8 +598,8 @@ só dar nome** (2026-09-27). A regra:
    lados conferem broker < api < engine e runner < engine. `container_remove`
    fica fora: nunca nasce auto-aprovado.
 
-Nenhuma dependência nova ([ADR 0128](../adr/0128-porta-de-docker-e-a-prova-de-empacotamento.md)), nenhum campo
-que o chamador escreva ([ADR 0130](../adr/0130-broker-de-container.md)): a imagem
+Nenhuma dependência nova ([ADR 0128](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0128-porta-de-docker-e-a-prova-de-empacotamento.md)), nenhum campo
+que o chamador escreva ([ADR 0130](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0130-broker-de-container.md)): a imagem
 continua vindo da decisão do Arquiteto, e `pull` não é operação nova do broker
 — é um passo do `start`.
 
@@ -622,9 +622,9 @@ continua vindo da decisão do Arquiteto, e `pull` não é operação nova do bro
   `apps/api/src/infrastructure/http-clients/container-broker.client.ts:252` (`TETO_DE_MUTACAO_MS`),
   `:216` (`CHAMADAS_DE_CONTROLE_NO_START`),
   `:275` (`TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`);
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:1985` (`opcoes_do_propose_action`),
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:2006` (`opcoes_do_propose_action`),
 
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:1985` (`opcoes_do_propose_action`),
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:2006` (`opcoes_do_propose_action`),
   `:1649` (`@teto_do_propose_action_de_container_ms`);
   `apps/engine/lib/engine/runners/runner_router.ex:52` (`@timeout_do_start_ms`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts:425` (describe da
@@ -648,7 +648,7 @@ continua vindo da decisão do Arquiteto, e `pull` não é operação nova do bro
 
 Sob `--cap-drop ALL` o root do container não tem `CAP_DAC_OVERRIDE` e não
 escreve na pasta do projeto, que é do uid do operador: `npm install` dava
-`EACCES` para todo dev agent (AT-247, [ADR 0180](../adr/0180-container-com-o-dono-da-pasta.md)).
+`EACCES` para todo dev agent (AT-247, [ADR 0180](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0180-container-com-o-dono-da-pasta.md)).
 
 1. **A api mede, o broker compõe.** `container-spec` devolve `usuarioDaPasta`
    (`stat` da pasta dos modos `container`/`mounted`; `null` se a pasta não é
@@ -740,21 +740,21 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
 
 ### RN-928 — O comando do app é argumento de um supervisor constante, e sem ele o container é o de sempre {#rn-928}
 
-- **Regra:** `EspecificacaoDeContainer.comandoDoApp` (opcional, até 300 caracteres, sem `\n`, `\r` nem NUL) troca o `sleep infinity` pelo supervisor CONSTANTE `SUPERVISOR_DO_APP`, que recebe o comando como `$1` (molde da [RN-807](#rn-807)) e nunca o concatena: aspas, `;` e `$()` do comando não escapam. O app sobe em background (log em `/tmp/brabo-app.log`, código em `/tmp/brabo-app.exit`) e o PID 1 segue `sleep infinity`. Ausente ou `null`, o `docker run` é byte a byte o anterior. O broker lê o campo SÓ da `container-spec` da api. ([ADR 0228](../adr/0228-comando-do-app-e-rede-do-container.md).)
+- **Regra:** `EspecificacaoDeContainer.comandoDoApp` (opcional, até 300 caracteres, sem `\n`, `\r` nem NUL) troca o `sleep infinity` pelo supervisor CONSTANTE `SUPERVISOR_DO_APP`, que recebe o comando como `$1` (molde da [RN-807](#rn-807)) e nunca o concatena: aspas, `;` e `$()` do comando não escapam. O app sobe em background (log em `/tmp/brabo-app.log`, código em `/tmp/brabo-app.exit`) e o PID 1 segue `sleep infinity`. Ausente ou `null`, o `docker run` é byte a byte o anterior. O broker lê o campo SÓ da `container-spec` da api. ([ADR 0228](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0228-comando-do-app-e-rede-do-container.md).)
 - **Onde:** `packages/docker-port/src/spec-de-container.ts:351` (`comandoDoAppValidado`), `packages/docker-port/src/docker-cli.ts:398` (`SUPERVISOR_DO_APP`), `packages/docker-port/src/docker-cli.ts:838` (`argsDeCriacao`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts:685` (`NÃO-REGRESSÃO`), `packages/docker-port/src/docker-cli.spec.ts:704` (comando com `'`, `;` e `$()` fica como argumento)
 - **Origem:** AT-610 (EP-030).
 
 ### RN-929 — Porta publicada vai só ao loopback, e DNS e `extra_hosts` são IP literal e nome de lista fechada {#rn-929}
 
-- **Regra:** `portas` vira sempre `-p 127.0.0.1:H:C` (TCP; interface constante, sem opção), host de 1024 a 65535 fora de 3000, 4000, 5173, 5432, 7474, 7687, 8088, 8090 e 11434, no máximo 10 e sem duplicata. `dns` é IP literal v4/v6 (até 3). `hostsExtras` é `{ nome, ip }` (até 10) com nome em `[a-z0-9.-]` de até 253 caracteres, nunca `localhost`, `host.docker.internal` nem nome de serviço da instalação, e IPv4 literal. Os três são recusados com rede `none`. `inspect` devolve `portasPublicadas` lidas de `NetworkSettings.Ports`, separadas do declarado ([RN-468](web.md#rn-468)). ([ADR 0228](../adr/0228-comando-do-app-e-rede-do-container.md).)
+- **Regra:** `portas` vira sempre `-p 127.0.0.1:H:C` (TCP; interface constante, sem opção), host de 1024 a 65535 fora de 3000, 4000, 5173, 5432, 7474, 7687, 8088, 8090 e 11434, no máximo 10 e sem duplicata. `dns` é IP literal v4/v6 (até 3). `hostsExtras` é `{ nome, ip }` (até 10) com nome em `[a-z0-9.-]` de até 253 caracteres, nunca `localhost`, `host.docker.internal` nem nome de serviço da instalação, e IPv4 literal. Os três são recusados com rede `none`. `inspect` devolve `portasPublicadas` lidas de `NetworkSettings.Ports`, separadas do declarado ([RN-468](https://github.com/viralabs-dev/brabo-web/blob/dev/docs/business-rules/web.md#rn-468)). ([ADR 0228](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0228-comando-do-app-e-rede-do-container.md).)
 - **Onde:** `packages/docker-port/src/spec-de-container.ts:384` (`portasValidadas`), `packages/docker-port/src/spec-de-container.ts:405` (`dnsValidado`), `packages/docker-port/src/spec-de-container.ts:415` (`hostsExtrasValidados`), `packages/docker-port/src/docker-cli.ts:365` (`portasPublicadasDe`)
 - **Teste:** `packages/docker-port/src/spec-de-container.spec.ts:237` (recusas), `packages/docker-port/src/docker-cli.spec.ts:714` (`-p 127.0.0.1`, `--dns`, `--add-host`), `apps/broker/src/operacoes.spec.ts:289` (vem da api)
 - **Origem:** AT-608 (EP-030), fatia do contrato.
 
 ### RN-930 — A instância de QA é efêmera, só mexe no que tem `brabo.papel=qa` e sobe os serviços que a Infra declarou por digest {#rn-930}
 
-- **Regra:** a spec com `qa: { chave, servicos }` sobe `brabo-qa-<workspace_dir_name>-<chave>` sem `--restart`, com `brabo.papel=qa` e `brabo.qa.instancia`, sem app nem porta. `stop`, `remove`, `inspect` e `exec` com `alvo` de QA filtram `brabo.papel=qa`; homônimo sem o papel é "não gerenciado" e nada é removido. Cada serviço (até 6, imagem por digest `@sha256:` obrigatório, `env` de chaves `[A-Z_][A-Z0-9_]*`) sobe com `--network container:<qa>`, `--cap-drop ALL`, sem privilégio nem porta publicada, tetos constantes e `--tmpfs`; serviço compartilhado vive na rede privada `--internal` do projeto. O broker expõe `/containers/:projectId/qa/:chave/{start,remove,exec}` e lê os serviços da api, conferindo a chave. ([ADR 0229](../adr/0229-instancia-de-qa-efemera-com-servicos-declarados-pela-infra.md).)
+- **Regra:** a spec com `qa: { chave, servicos }` sobe `brabo-qa-<workspace_dir_name>-<chave>` sem `--restart`, com `brabo.papel=qa` e `brabo.qa.instancia`, sem app nem porta. `stop`, `remove`, `inspect` e `exec` com `alvo` de QA filtram `brabo.papel=qa`; homônimo sem o papel é "não gerenciado" e nada é removido. Cada serviço (até 6, imagem por digest `@sha256:` obrigatório, `env` de chaves `[A-Z_][A-Z0-9_]*`) sobe com `--network container:<qa>`, `--cap-drop ALL`, sem privilégio nem porta publicada, tetos constantes e `--tmpfs`; serviço compartilhado vive na rede privada `--internal` do projeto. O broker expõe `/containers/:projectId/qa/:chave/{start,remove,exec}` e lê os serviços da api, conferindo a chave. ([ADR 0229](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0229-instancia-de-qa-efemera-com-servicos-declarados-pela-infra.md).)
 - **Onde:** `packages/docker-port/src/docker-cli.ts:625` (`iniciarQa`), `packages/docker-port/src/docker-cli.ts:933` (`argsDeServicoDeQa`), `packages/docker-port/src/spec-de-container.ts:439` (`instanciaDeQaValidada`), `apps/broker/src/operacoes.ts:212` (`startQa`), `apps/broker/src/servidor.ts:135` (`rotaDeContainer`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts:815` (remove só alcança o papel `qa`), `packages/docker-port/src/spec-de-container.spec.ts:256` (digest, chave, env), `apps/broker/src/operacoes.spec.ts:321` (lista da api e chave da rota), `apps/broker/src/servidor.spec.ts:405` (roteador fechado)
 - **Origem:** AT-612 (EP-030).
@@ -768,7 +768,7 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
 
 ### RN-947 — O comando do agente no `exec` não aparece na linha de comando de nenhum processo do container {#rn-947}
 
-- **Regra:** o comando do `exec` da `DockerPort` viaja por `-e BRABO_EXEC_CMD=<comando>` e não mais no argv: o embrulho da [RN-807](#rn-807) o lê, faz `unset` e `set --`, e o roda por `(eval "$c")` em subshell (mesmo grupo, mesmo PID gravado, `exit` e `set -e` contidos, exit code preservado). O argv do container fica só `/bin/sh -c <embrulho> brabo-exec <marcador>`. Medido no uso real: os 36 comandos do QA de automação com `pkill -f` morriam com 143, porque o padrão casava o argv do próprio `sh`. Fora, declarado: o runner no host (`apps/runner/src/exec.ts`), que a [RN-507](runner.md#rn-507) já condiciona a container `running`.
+- **Regra:** o comando do `exec` da `DockerPort` viaja por `-e BRABO_EXEC_CMD=<comando>` e não mais no argv: o embrulho da [RN-807](#rn-807) o lê, faz `unset` e `set --`, e o roda por `(eval "$c")` em subshell (mesmo grupo, mesmo PID gravado, `exit` e `set -e` contidos, exit code preservado). O argv do container fica só `/bin/sh -c <embrulho> brabo-exec <marcador>`. Medido no uso real: os 36 comandos do QA de automação com `pkill -f` morriam com 143, porque o padrão casava o argv do próprio `sh`. Fora, declarado: o runner no host (`apps/runner/src/exec.ts`), que a [RN-507](https://github.com/viralabs-dev/brabo-runner/blob/dev/docs/business-rules/runner.md#rn-507) já condiciona a container `running`.
 - **Onde:** `packages/docker-port/src/docker-cli.ts:303` (`EMBRULHO_DO_EXEC`).
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` ("o comando que estoura volta timedOut e MORRE dentro do container", contra Docker real: auto-`pkill -f` sobrevive, `exit 3` volta 3, o comando não aparece no `ps`).
 - **Origem:** AT-622 (EP-030).
