@@ -31,4 +31,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Vínculos do run
-        uses: viralabs-dev/brabo-ci/.github/actions/vinculos@a571e82f02edf165142aa298c65ac05213d4687d  # v1.4.0-dev.28
+        uses: viralabs-dev/brabo-ci/.github/actions/vinculos@a571e82f02edf165142aa298c65ac05213d4687d  # v1.4.0-dev.28 (AT-773)
