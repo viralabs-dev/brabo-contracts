@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CI (AT-873): repina os reutilizáveis do `brabo-ci` em `a571e82` (`v1.4.0-dev.28`, ci#63), que linka cada repo na tabela "Onde se encaixa" do mapa. Este README não tem o bloco do mapa.
+
 - Docs (AT-867): a linha de badges logo abaixo do título mostra o CI da `dev` e o da `main`, a versão da `dev` (última tag `-dev`), licença MIT, documentação e Ko-fi, no estilo do `brabo` Sem release publicada, o badge de versão da `main` não entra.
 
 - Docs (AT-848): o bloco do mapa do README é regenerado do `repos.yml` do brabo, que ganha a aresta `brabo → brabo-contracts` e a prova em `{arquivo, trecho}` (`mapa-alinhado` volta a bater).
