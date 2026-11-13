@@ -619,12 +619,12 @@ continua vindo da decisão do Arquiteto, e `pull` não é operação nova do bro
   `:754` (`garantirImagem`), `:129` (`CHAMADAS_DE_CONTROLE_NO_START`),
   `:116` (`TIMEOUT_DE_CONTROLE_MS`);
   `apps/broker/src/servidor.ts:251` (`PullExcedeuTetoError`);
-  `apps/api/src/infrastructure/http-clients/container-broker.client.ts:252` (`TETO_DE_MUTACAO_MS`),
-  `:216` (`CHAMADAS_DE_CONTROLE_NO_START`),
-  `:275` (`TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`);
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:2075` (`opcoes_do_propose_action`),
+  `apps/api/src/infrastructure/http-clients/container-broker.client.ts:266` (`TETO_DE_MUTACAO_MS`),
+  `:230` (`CHAMADAS_DE_CONTROLE_NO_START`),
+  `:292` (`TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`);
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:2087` (`opcoes_do_propose_action`),
 
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:2075` (`opcoes_do_propose_action`),
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:2087` (`opcoes_do_propose_action`),
   `:1649` (`@teto_do_propose_action_de_container_ms`);
   `apps/engine/lib/engine/runners/runner_router.ex:52` (`@timeout_do_start_ms`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts:425` (describe da
