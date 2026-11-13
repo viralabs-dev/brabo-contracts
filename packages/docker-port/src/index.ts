@@ -15,3 +15,4 @@
 export * from './docker-port.ts';
 export * from './docker-cli.ts';
 export * from './spec-de-container.ts';
+export * from './prova-de-compose.ts';
