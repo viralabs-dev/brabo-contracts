@@ -618,13 +618,13 @@ continua vindo da decisão do Arquiteto, e `pull` não é operação nova do bro
   `packages/docker-port/src/docker-cli.ts:206` (`PullExcedeuTetoError`),
   `:754` (`garantirImagem`), `:129` (`CHAMADAS_DE_CONTROLE_NO_START`),
   `:116` (`TIMEOUT_DE_CONTROLE_MS`);
-  `apps/broker/src/servidor.ts:240` (`PullExcedeuTetoError`);
+  `apps/broker/src/servidor.ts:251` (`PullExcedeuTetoError`);
   `apps/api/src/infrastructure/http-clients/container-broker.client.ts:252` (`TETO_DE_MUTACAO_MS`),
   `:216` (`CHAMADAS_DE_CONTROLE_NO_START`),
   `:275` (`TETO_DO_PROPOSE_ACTION_DE_CONTAINER_NO_ENGINE_MS`);
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:2054` (`opcoes_do_propose_action`),
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:2075` (`opcoes_do_propose_action`),
 
-  `apps/engine/lib/engine/sessions/engine_api_client.ex:2054` (`opcoes_do_propose_action`),
+  `apps/engine/lib/engine/sessions/engine_api_client.ex:2075` (`opcoes_do_propose_action`),
   `:1649` (`@teto_do_propose_action_de_container_ms`);
   `apps/engine/lib/engine/runners/runner_router.ex:52` (`@timeout_do_start_ms`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts:425` (describe da
@@ -663,7 +663,7 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
 
 - **Onde:** `packages/docker-port/src/docker-cli.ts:838` (`argsDeCriacao`),
   `packages/docker-port/src/spec-de-container.ts:136` (`usuarioValidado`),
-  `apps/broker/src/operacoes.ts:456` (`especificacaoDoProjeto`),
+  `apps/broker/src/operacoes.ts:491` (`especificacaoDoProjeto`),
   `apps/api/src/application/use-cases/containers/obter-spec-de-container.use-case.ts:124`
   (`ObterSpecDeContainerUseCase`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts` (o `run` leva
@@ -755,7 +755,7 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
 ### RN-930 — A instância de QA é efêmera, só mexe no que tem `brabo.papel=qa` e sobe os serviços que a Infra declarou por digest {#rn-930}
 
 - **Regra:** a spec com `qa: { chave, servicos }` sobe `brabo-qa-<workspace_dir_name>-<chave>` sem `--restart`, com `brabo.papel=qa` e `brabo.qa.instancia`, sem app nem porta. `stop`, `remove`, `inspect` e `exec` com `alvo` de QA filtram `brabo.papel=qa`; homônimo sem o papel é "não gerenciado" e nada é removido. Cada serviço (até 6, imagem por digest `@sha256:` obrigatório, `env` de chaves `[A-Z_][A-Z0-9_]*`) sobe com `--network container:<qa>`, `--cap-drop ALL`, sem privilégio nem porta publicada, tetos constantes e `--tmpfs`; serviço compartilhado vive na rede privada `--internal` do projeto. O broker expõe `/containers/:projectId/qa/:chave/{start,remove,exec}` e lê os serviços da api, conferindo a chave. ([ADR 0229](https://github.com/viralabs-dev/brabo/blob/dev/docs/adr/0229-instancia-de-qa-efemera-com-servicos-declarados-pela-infra.md).)
-- **Onde:** `packages/docker-port/src/docker-cli.ts:625` (`iniciarQa`), `packages/docker-port/src/docker-cli.ts:933` (`argsDeServicoDeQa`), `packages/docker-port/src/spec-de-container.ts:439` (`instanciaDeQaValidada`), `apps/broker/src/operacoes.ts:212` (`startQa`), `apps/broker/src/servidor.ts:135` (`rotaDeContainer`)
+- **Onde:** `packages/docker-port/src/docker-cli.ts:625` (`iniciarQa`), `packages/docker-port/src/docker-cli.ts:933` (`argsDeServicoDeQa`), `packages/docker-port/src/spec-de-container.ts:439` (`instanciaDeQaValidada`), `apps/broker/src/operacoes.ts:222` (`startQa`), `apps/broker/src/servidor.ts:139` (`rotaDeContainer`)
 - **Teste:** `packages/docker-port/src/docker-cli.spec.ts:815` (remove só alcança o papel `qa`), `packages/docker-port/src/spec-de-container.spec.ts:256` (digest, chave, env), `apps/broker/src/operacoes.spec.ts:321` (lista da api e chave da rota), `apps/broker/src/servidor.spec.ts:405` (roteador fechado)
 - **Origem:** AT-612 (EP-030).
 
