@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Feature (AT-922): `docker-port` ganha `ProvaDeComposePort.provaDeCompose` (porta separada, só o broker implementa), o resultado `{ subiu, sondas, recusas?, origem }` e os limites como dado (`LIMITES_DA_PROVA_DE_COMPOSE`: 10 min, 4 GB, 1 por projeto). Mudança aditiva (MINOR); o runner não é afetado.
+
 - CI: repina o brabo-ci na release final `v1.4.0` (`5320046`), para a promoção `dev → main` de 09/11/2026 (a `main` só aceita release final).
 
 - Doc (AT-868): os 41 links das páginas de RN que apontavam para docs de outro repo (`../adr/…`, `api.md`) viram URL do arquivo no GitHub do repo dono, na `dev`. No site continuam relativos.
