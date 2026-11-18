@@ -98,6 +98,7 @@ describe('DockerViaCli.start', () => {
       containerId: 'c0ffeebabe',
       nome: 'brabo-exp002-f52be111',
       jaEstavaDePe: false,
+      recriado: false,
     });
 
     const run = chamadas.find((c) => c[0] === 'run');
@@ -181,16 +182,207 @@ describe('DockerViaCli.start', () => {
     expect(chamadas.some((c) => c[0] === 'run')).toBe(false);
   });
 
-  it('container parado com o mesmo nome é RELIGADO, nunca recriado', async () => {
+  /** O hash que o `run` gravou, lido do `run` de um `start` num host vazio. */
+  async function hashDoRun(): Promise<string> {
+    const { rodar, chamadas } = duplo([{ quando: ['run'], entao: comSaida('c0ffee\n') }]);
+    await new DockerViaCli(rodar).start(SPEC);
+    const run = chamadas.find((c) => c[0] === 'run') as string[];
+    expect(run.slice(1, 3)).toEqual(['--label', expect.stringMatching(/^brabo\.spec\.hash=[0-9a-f]{64}$/)]);
+    return (run[2] as string).split('=')[1] as string;
+  }
+
+  function inspecaoComHash(hash: string | undefined): ResultadoDoCli {
+    return comSaida(
+      JSON.stringify({ Id: 'c0ffee', Config: { Labels: hash === undefined ? {} : { 'brabo.spec.hash': hash } } }),
+    );
+  }
+
+  const PARADO = linhaDePs('brabo-exp002-f52be111', 'exited');
+
+  it('parado com o MESMO hash de spec é RELIGADO, nunca recriado', async () => {
     const { rodar, chamadas } = duplo([
-      { quando: ['ps'], entao: comSaida(linhaDePs('brabo-exp002-f52be111', 'exited')) },
+      { quando: ['ps'], entao: comSaida(PARADO) },
+      { quando: ['inspect'], entao: inspecaoComHash(await hashDoRun()) },
     ]);
 
     const iniciado = await new DockerViaCli(rodar).start(SPEC);
 
-    expect(iniciado.jaEstavaDePe).toBe(false);
+    expect(iniciado).toMatchObject({ jaEstavaDePe: false, recriado: false });
     expect(chamadas.some((c) => c[0] === 'start')).toBe(true);
-    expect(chamadas.some((c) => c[0] === 'run')).toBe(false);
+    expect(chamadas.some((c) => c[0] === 'run' || c[0] === 'rm')).toBe(false);
+  });
+
+  it('parado com spec DIFERENTE (porta nova) é removido e recriado, recriado=true', async () => {
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida(PARADO) },
+      { quando: ['inspect'], entao: inspecaoComHash(await hashDoRun()) },
+      { quando: ['run'], entao: comSaida('novo\n') },
+    ]);
+
+    const iniciado = await new DockerViaCli(rodar).start({
+      ...SPEC,
+      portas: [{ host: 13001, container: 3000, protocolo: 'tcp' }],
+    });
+
+    expect(iniciado).toMatchObject({ containerId: 'novo', jaEstavaDePe: false, recriado: true });
+    expect(chamadas.some((c) => c[0] === 'start')).toBe(false);
+    const rm = chamadas.findIndex((c) => c[0] === 'rm' && c.includes('--force'));
+    expect(rm).toBeGreaterThanOrEqual(0);
+    expect(chamadas.findIndex((c) => c[0] === 'run')).toBeGreaterThan(rm);
+  });
+
+  it('parado sem rótulo de hash (container antigo) é recriado', async () => {
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida(PARADO) },
+      { quando: ['inspect'], entao: inspecaoComHash(undefined) },
+    ]);
+    const iniciado = await new DockerViaCli(rodar).start(SPEC);
+    expect(iniciado.recriado).toBe(true);
+    expect(chamadas.some((c) => c[0] === 'start')).toBe(false);
+  });
+
+  it('homônimo `created` (nunca rodou) é removido e recriado, mesmo com o hash igual', async () => {
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida(linhaDePs('brabo-exp002-f52be111', 'created')) },
+      { quando: ['inspect'], entao: inspecaoComHash(await hashDoRun()) },
+      { quando: ['run'], entao: comSaida('novo\n') },
+    ]);
+    const iniciado = await new DockerViaCli(rodar).start(SPEC);
+    expect(iniciado.recriado).toBe(true);
+    expect(chamadas.some((c) => c[0] === 'start')).toBe(false);
+    expect(chamadas.some((c) => c[0] === 'rm' && c.includes('--force'))).toBe(true);
+  });
+
+  it('o `run` que falha remove o container que ele deixou `Created`, e o erro do `run` sobe', async () => {
+    const nome = 'brabo-exp002-f52be111';
+    const { rodar, chamadas } = duplo([
+      // 1º `ps` (resolver) não acha nada; depois do `run` o resto aparece.
+      { quando: ['run'], entao: { ...OK, exitCode: 125, stderr: 'bind: address already in use' } },
+    ]);
+    let psChamado = 0;
+    const comResto: RodarDocker = async (args, t) => {
+      if (args[0] === 'ps') {
+        psChamado += 1;
+        if (args.some((a) => a.startsWith('label=brabo.managed')) && psChamado > 1) {
+          return comSaida(linhaDePs(nome, 'created', 'resto1'));
+        }
+      }
+      return rodar(args, t);
+    };
+
+    await expect(new DockerViaCli(comResto).start(SPEC)).rejects.toBeInstanceOf(
+      ComandoDeDockerFalhouError,
+    );
+    expect(chamadas).toContainEqual(['rm', '--force', 'resto1']);
+  });
+});
+
+describe('DockerViaCli.recursosDoHost', () => {
+  const insp = (o: object) => JSON.stringify(o);
+  const gerenciado = {
+    Id: 'a1',
+    Name: '/brabo-p1',
+    Config: { Labels: { 'brabo.managed': 'true', 'brabo.project.id': 'p1' } },
+    State: { Status: 'running' },
+    NetworkSettings: { Ports: { '3000/tcp': [{ HostIp: '127.0.0.1', HostPort: '13000' }] } },
+  };
+  const terceiro = {
+    Id: 'b2',
+    Name: '/nginx-do-vizinho',
+    Config: { Image: 'nginx', Labels: { 'com.x': 'y' } },
+    State: { Status: 'running' },
+    NetworkSettings: { Ports: { '80/tcp': [{ HostIp: '0.0.0.0', HostPort: '8080' }] } },
+  };
+  const parado = {
+    Id: 'c3',
+    Name: '/brabo-qa-p2-k1-redis',
+    Config: { Labels: { 'brabo.managed': 'true', 'brabo.project.id': 'p2', 'brabo.qa.dono': 'x' } },
+    State: { Status: 'exited' },
+    NetworkSettings: { Ports: {} },
+  };
+
+  it('porta de terceiro sai só como número; o gerenciado leva projectId; parado não segura porta', async () => {
+    const { rodar, chamadas } = duplo([
+      {
+        quando: ['ps'],
+        entao: comSaida(['a1', 'b2', 'c3'].map((ID) => JSON.stringify({ ID })).join('\n')),
+      },
+      { quando: ['inspect'], entao: comSaida([gerenciado, terceiro, parado].map(insp).join('\n')) },
+      { quando: ['network', 'ls'], entao: comSaida(JSON.stringify({ ID: 'n1' })) },
+      {
+        quando: ['network', 'inspect'],
+        entao: comSaida(insp({ Id: 'n1', Name: 'brabo-qa-w', Labels: { 'brabo.project.id': 'p2' } })),
+      },
+    ]);
+
+    const r = await new DockerViaCli(rodar).recursosDoHost();
+
+    expect(r.portas).toEqual([
+      { host: 13000, ip: '127.0.0.1', protocolo: 'tcp', projectId: 'p1' },
+      { host: 8080, ip: '0.0.0.0', protocolo: 'tcp', projectId: null },
+    ]);
+    expect(r.containers).toEqual([
+      { projectId: 'p1', papel: 'trabalho', estado: 'running', nome: 'brabo-p1' },
+      { projectId: 'p2', papel: 'servico_qa', estado: 'exited', nome: 'brabo-qa-p2-k1-redis' },
+    ]);
+    expect(r.redes).toEqual([{ projectId: 'p2', nome: 'brabo-qa-w' }]);
+    expect(JSON.stringify(r)).not.toContain('nginx');
+    // Um `inspect` só, para todos os ids.
+    expect(chamadas.filter((c) => c[0] === 'inspect')).toHaveLength(1);
+  });
+
+  it('host vazio não chama `inspect` (docker inspect sem id é erro)', async () => {
+    const { rodar, chamadas } = duplo([]);
+    expect(await new DockerViaCli(rodar).recursosDoHost()).toEqual({
+      portas: [],
+      containers: [],
+      redes: [],
+    });
+    expect(chamadas.some((c) => c[0] === 'inspect')).toBe(false);
+  });
+});
+
+describe('DockerViaCli.removerPorProjeto', () => {
+  it('remove por rótulo gerenciado + projeto: containers primeiro, redes depois', async () => {
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida(linhaDePs('brabo-qa-w-k1', 'running', 'c1')) },
+      { quando: ['network', 'ls'], entao: comSaida(JSON.stringify({ ID: 'n1' })) },
+      { quando: ['network', 'inspect'], entao: comSaida(JSON.stringify({ Id: 'n1', Name: 'brabo-qa-w' })) },
+    ]);
+
+    const r = await new DockerViaCli(rodar).removerPorProjeto('p9');
+
+    expect(r).toEqual({ containers: ['brabo-qa-w-k1'], redes: ['brabo-qa-w'] });
+    const ps = chamadas.find((c) => c[0] === 'ps') as string[];
+    expect(ps).toContain('label=brabo.managed=true');
+    expect(ps).toContain('label=brabo.project.id=p9');
+    const rm = chamadas.findIndex((c) => c[0] === 'rm');
+    const netRm = chamadas.findIndex((c) => c[0] === 'network' && c[1] === 'rm');
+    expect(chamadas[rm]).toEqual(['rm', '--force', 'c1']);
+    expect(chamadas[netRm]).toEqual(['network', 'rm', 'n1']);
+    expect(rm).toBeLessThan(netRm);
+  });
+
+  it('projectId vazio é recusado antes de qualquer chamada', async () => {
+    const { rodar, chamadas } = duplo([]);
+    await expect(new DockerViaCli(rodar).removerPorProjeto(' ')).rejects.toThrow();
+    expect(chamadas).toHaveLength(0);
+  });
+});
+
+describe('rede de QA', () => {
+  it('nasce com o rótulo brabo.project.id', async () => {
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida('') },
+      { quando: ['network', 'inspect'], entao: { ...OK, exitCode: 1 } },
+      { quando: ['run'], entao: comSaida('c0ffee\n') },
+    ]);
+    await new DockerViaCli(rodar).start({
+      ...SPEC,
+      qa: { chave: 'k1', servicos: [{ nome: 'redis', imagem: 'redis:7', compartilhado: true }] },
+    });
+    const criar = chamadas.find((c) => c[0] === 'network' && c[1] === 'create') as string[];
+    expect(criar.join(' ')).toContain(`--label brabo.project.id=${SPEC.projectId}`);
   });
 });
 
@@ -559,6 +751,7 @@ describe('DockerViaCli.start — imagem ausente cujo pull passa do teto de contr
       containerId: 'c0ffeebabe',
       nome: 'brabo-exp002-f52be111',
       jaEstavaDePe: false,
+      recriado: false,
     });
     const verbos = chamadas.map((c) => c.args[0]);
     expect(verbos.indexOf('pull')).toBeGreaterThan(-1);
@@ -577,11 +770,12 @@ describe('DockerViaCli.start — imagem ausente cujo pull passa do teto de contr
     expect(chamadas.some((c) => c[0] === 'pull')).toBe(false);
   });
 
-  it('o pior caso do `start` tem SEIS chamadas de controle em série', () => {
-    // ps gerenciado + ps homônimo + image inspect + pull + run + version. É o
-    // número de que a api (`TETO_DE_MUTACAO_MS`) e o engine derivam os tetos
-    // deles (RN-605); mudou aqui, muda lá.
-    expect(CHAMADAS_DE_CONTROLE_NO_START).toBe(6);
+  it('o pior caso do `start` tem NOVE chamadas de controle em série', () => {
+    // ps gerenciado + inspect do hash + rm + image inspect + pull + run +
+    // version + (ps + rm do resto do `run`). É o número de que a api
+    // (`TETO_DE_MUTACAO_MS`) e o engine derivam os tetos deles (RN-605);
+    // mudou aqui, muda lá.
+    expect(CHAMADAS_DE_CONTROLE_NO_START).toBe(9);
   });
 });
 
@@ -684,7 +878,9 @@ describe('DockerViaCli — spec ampliada (ADR 0228/0229)', () => {
 
   it('NÃO-REGRESSÃO: campos novos ausentes = run byte a byte o de sempre', async () => {
     const args = await rodarStart(SPEC);
-    expect(args).toEqual([
+    // O único acréscimo ao run de sempre é o rótulo de hash, logo depois do `run`.
+    expect(args.slice(0, 3)).toEqual(['run', '--label', expect.stringMatching(/^brabo\.spec\.hash=[0-9a-f]{64}$/)]);
+    expect(['run', ...args.slice(3)]).toEqual([
       'run', '--detach', '--init', '--restart', 'unless-stopped',
       '--name', 'brabo-exp002-f52be111',
       '--label', 'brabo.managed=true',
