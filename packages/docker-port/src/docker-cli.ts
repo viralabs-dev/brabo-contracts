@@ -71,6 +71,7 @@
  */
 
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { TETO_DE_SERVICO_DE_QA } from './spec-de-container.ts';
 import {
   ContainerAusenteError,
@@ -80,6 +81,8 @@ import {
   nomeDoContainer,
   nomeDoContainerDeQa,
   ROTULO_PAPEL,
+  ROTULO_PROJETO,
+  ROTULO_SPEC_HASH,
   ROTULO_QA_INSTANCIA,
   ROTULO_QA_DONO,
   ROTULO_QA_COMPARTILHADO,
@@ -90,6 +93,11 @@ import {
   PONTO_DE_MONTAGEM,
   ROTULO_GERENCIADO,
   type ResultadoDoReinicio,
+  type RecursosDoHost,
+  type RemovidosPorProjeto,
+  type PortaOcupada,
+  type ContainerGerenciado,
+  type RedeGerenciada,
 } from './docker-port.ts';
 import type {
   ContainerIniciado,
@@ -120,13 +128,14 @@ export const TIMEOUT_DE_CONTROLE_MS = 30_000;
 export const TIMEOUT_DO_REINICIO_MS = 30_000;
 
 /**
- * Quantas chamadas de controle o `start` faz no PIOR caso, em série: os dois
- * `ps` de `resolver` (o gerenciado e o homônimo), o `image inspect`, o `pull`,
- * o `run` e o `docker version` que `executar` roda quando a última falha, para
- * nomear a causa. Quem espera o `start` (a api pelo broker, o engine pelo
+ * Quantas chamadas de controle o `start` faz no PIOR caso, em série: o `ps` do
+ * gerenciado, o `inspect` do rótulo de spec, o `rm` da recriação, o `image
+ * inspect`, o `pull`, o `run`, o `docker version` que `executar` roda quando a
+ * última falha, para nomear a causa, e o `ps` + `rm` que limpam o resto do
+ * `run` que falhou. Quem espera o `start` (a api pelo broker, o engine pelo
  * runner) deriva o próprio teto daqui (RN-605).
  */
-export const CHAMADAS_DE_CONTROLE_NO_START = 6;
+export const CHAMADAS_DE_CONTROLE_NO_START = 9;
 
 /** Segundos entre SIGTERM e SIGKILL num `docker stop`. */
 const GRACA_DE_PARADA_S = 10;
@@ -350,6 +359,12 @@ interface LinhaDePs {
   State?: string;
 }
 
+interface RedeDeLista {
+  Id?: string;
+  Name?: string;
+  Labels?: { [rotulo: string]: string } | null;
+}
+
 interface InspecaoDeContainer {
   Id?: string;
   Name?: string;
@@ -452,20 +467,59 @@ export class DockerViaCli extends DockerPort {
 
     if (existente !== null) {
       if (existente.estado === 'running') {
-        return { containerId: existente.id, nome, jaEstavaDePe: true };
+        return { containerId: existente.id, nome, jaEstavaDePe: true, recriado: false };
       }
-      // Container parado com o MESMO nome: sobe o que existe em vez de
-      // recriar. Recriar perderia o que o container guardou fora do
-      // bind-mount (cache de pacotes, por exemplo) sem ninguém ter pedido.
-      await this.executar(['start', existente.id], TIMEOUT_DE_CONTROLE_MS);
-      return { containerId: existente.id, nome, jaEstavaDePe: false };
+      // Parado com o MESMO nome e a MESMA spec: religa em vez de recriar, que
+      // perderia o que ele guardou fora do bind-mount (cache de pacotes) sem
+      // ninguém ter pedido. `created` nunca rodou (o `run` falhou no meio, sem
+      // rede) e spec velha (portas, rede, comando, imagem) não se religa: recria.
+      if (existente.estado !== 'created' && (await this.mesmaSpec(existente.id, spec, nome))) {
+        await this.executar(['start', existente.id], TIMEOUT_DE_CONTROLE_MS);
+        return { containerId: existente.id, nome, jaEstavaDePe: false, recriado: false };
+      }
+      await this.executar(['rm', '--force', existente.id], TIMEOUT_DE_CONTROLE_MS);
+      return { ...(await this.criar(spec, nome)), recriado: true };
     }
 
+    return this.criar(spec, nome);
+  }
+
+  /** `docker run` com o pull nomeado antes; o `run` que falha não deixa container `Created`. */
+  private async criar(spec: EspecificacaoDeContainer, nome: string): Promise<ContainerIniciado> {
     // O pull, quando há, acontece AQUI, nomeado e sob o teto de controle — e
     // não dentro do `run`, onde o estouro virava "código -1" sem nome (AT-234).
     await this.garantirImagem(spec.imagem);
-    const criado = await this.executar(this.argsDeCriacao(spec, nome), TIMEOUT_DE_CONTROLE_MS);
-    return { containerId: criado.stdout.trim(), nome, jaEstavaDePe: false };
+    try {
+      const criado = await this.executar(this.argsDeCriacao(spec, nome), TIMEOUT_DE_CONTROLE_MS);
+      return { containerId: criado.stdout.trim(), nome, jaEstavaDePe: false, recriado: false };
+    } catch (erro) {
+      await this.limparRestoDoRun(nome);
+      throw erro;
+    }
+  }
+
+  /**
+   * O `run` que falha (bind de porta, por exemplo) deixa o container `Created`,
+   * sem rede. Remove-o, só se for o gerenciado, e nunca esconde o erro do `run`.
+   */
+  private async limparRestoDoRun(nome: string): Promise<void> {
+    try {
+      const resto = await this.listar([`name=^/${nome}$`, `label=${ROTULO_GERENCIADO}=true`]);
+      for (const linha of resto) {
+        if (linha.ID && nomesDaLinha(linha).includes(nome)) {
+          await this.rodar(['rm', '--force', linha.ID], TIMEOUT_DE_CONTROLE_MS);
+        }
+      }
+    } catch {
+      // melhor esforço: a falha que importa é a do `run`
+    }
+  }
+
+  /** O rótulo `brabo.spec.hash` do parado é o da spec de agora? Sem rótulo (container antigo) = não. */
+  private async mesmaSpec(id: string, spec: EspecificacaoDeContainer, nome: string): Promise<boolean> {
+    const r = await this.executar(['inspect', '--format', '{{json .}}', id], TIMEOUT_DE_CONTROLE_MS);
+    const rotulo = primeiroJson<InspecaoDeContainer>(r.stdout)?.Config?.Labels?.[ROTULO_SPEC_HASH];
+    return rotulo === hashDaSpec(this.argsBase(spec, nome));
   }
 
   async stop(workspaceDirName: string, alvo?: AlvoDeQa): Promise<void> {
@@ -617,6 +671,99 @@ export class DockerViaCli extends DockerPort {
     return { reiniciou: false, motivo: 'falha_no_exec' };
   }
 
+  async recursosDoHost(): Promise<RecursosDoHost> {
+    // UM `ps` e UM `inspect`: a leitura é o JSON do `inspect`, nunca o texto do `ps`.
+    const ids = (await this.listar([])).flatMap((l) => (l.ID ? [l.ID] : []));
+    const detalhes = await this.inspecionar(ids);
+    const portas: PortaOcupada[] = [];
+    const containers: ContainerGerenciado[] = [];
+    for (const d of detalhes) {
+      const rotulos = d.Config?.Labels ?? {};
+      const gerenciado = rotulos[ROTULO_GERENCIADO] === 'true';
+      const projectId = rotulos[ROTULO_PROJETO] ?? null;
+      const estado = estadoNormalizado(d.State?.Status ?? '');
+      // Só `running` segura porta. Terceiro: só o número, sem nome nem imagem.
+      if (estado === 'running') {
+        for (const p of portasPublicadasDe(d)) {
+          portas.push({
+            host: p.host,
+            ip: p.ip,
+            protocolo: p.protocolo,
+            projectId: gerenciado ? projectId : null,
+          });
+        }
+      }
+      if (gerenciado && projectId !== null && projectId !== '') {
+        const papel =
+          rotulos[ROTULO_QA_DONO] !== undefined || rotulos[ROTULO_QA_COMPARTILHADO] !== undefined
+            ? 'servico_qa'
+            : rotulos[ROTULO_PAPEL] === 'qa'
+              ? 'qa'
+              : 'trabalho';
+        containers.push({ projectId, papel, estado, nome: (d.Name ?? '').replace(/^\//, '') });
+      }
+    }
+    const redes: RedeGerenciada[] = [];
+    for (const r of await this.listarRedes([`label=${ROTULO_GERENCIADO}=true`])) {
+      const projectId = r.Labels?.[ROTULO_PROJETO];
+      if (projectId && r.Name) redes.push({ projectId, nome: r.Name });
+    }
+    return { portas, containers, redes };
+  }
+
+  async removerPorProjeto(projectId: string): Promise<RemovidosPorProjeto> {
+    // Rótulo vazio casaria com recurso sem dono: recusa em vez de varrer.
+    if (projectId.trim() === '') throw new Error('removerPorProjeto exige o projectId');
+    const filtros = [`label=${ROTULO_GERENCIADO}=true`, `label=${ROTULO_PROJETO}=${projectId}`];
+    const containers: string[] = [];
+    for (const l of await this.listar(filtros)) {
+      if (!l.ID) continue;
+      await this.executar(['rm', '--force', l.ID], TIMEOUT_DE_CONTROLE_MS);
+      containers.push(nomesDaLinha(l)[0] ?? l.ID);
+    }
+    // Redes depois dos containers: rede com endpoint ligado não sai.
+    const redes: string[] = [];
+    for (const r of await this.listarRedes(filtros)) {
+      if (!r.Id) continue;
+      await this.executar(['network', 'rm', r.Id], TIMEOUT_DE_CONTROLE_MS);
+      redes.push(r.Name ?? r.Id);
+    }
+    return { containers, redes };
+  }
+
+  /** Um `inspect` para todos os ids (sem ids não chama: o `docker inspect` vazio é erro). */
+  private async inspecionar(ids: readonly string[]): Promise<InspecaoDeContainer[]> {
+    if (ids.length === 0) return [];
+    const r = await this.executar(
+      ['inspect', '--format', '{{json .}}', ...ids],
+      TIMEOUT_DE_CONTROLE_MS,
+    );
+    return r.stdout.split('\n').flatMap((linha) => {
+      const d = primeiroJson<InspecaoDeContainer>(linha.trim());
+      return d === null ? [] : [d];
+    });
+  }
+
+  /** `network ls` filtrado, com os rótulos lidos do `inspect` (JSON), não do texto do `ls`. */
+  private async listarRedes(filtros: readonly string[]): Promise<RedeDeLista[]> {
+    const args = ['network', 'ls', '--no-trunc', '--format', '{{json .}}'];
+    for (const f of filtros) args.push('--filter', f);
+    const ls = await this.executar(args, TIMEOUT_DE_CONTROLE_MS);
+    const ids = ls.stdout.split('\n').flatMap((linha) => {
+      const n = primeiroJson<{ ID?: string }>(linha.trim());
+      return n?.ID ? [n.ID] : [];
+    });
+    if (ids.length === 0) return [];
+    const r = await this.executar(
+      ['network', 'inspect', '--format', '{{json .}}', ...ids],
+      TIMEOUT_DE_CONTROLE_MS,
+    );
+    return r.stdout.split('\n').flatMap((linha) => {
+      const n = primeiroJson<RedeDeLista>(linha.trim());
+      return n === null ? [] : [n];
+    });
+  }
+
   /**
    * AT-612 (ADR 0229): a instancia de QA efemera. Existente de pe = idempotente;
    * existente parada e DESCARTADA e recriada (efemera: nao ha o que preservar).
@@ -631,7 +778,7 @@ export class DockerViaCli extends DockerPort {
     const existente = await this.resolver(nome, alvo);
     if (existente !== null) {
       if (existente.estado === 'running') {
-        return { containerId: existente.id, nome, jaEstavaDePe: true };
+        return { containerId: existente.id, nome, jaEstavaDePe: true, recriado: false };
       }
       await this.remove(spec.workspaceDirName, alvo);
     }
@@ -639,11 +786,17 @@ export class DockerViaCli extends DockerPort {
     await this.garantirImagem(spec.imagem);
     for (const servico of qa.servicos) await this.garantirImagem(servico.imagem);
 
-    const criado = await this.executar(this.argsDeCriacao(spec, nome), TIMEOUT_DE_CONTROLE_MS);
+    let criado: ResultadoDoCli;
+    try {
+      criado = await this.executar(this.argsDeCriacao(spec, nome), TIMEOUT_DE_CONTROLE_MS);
+    } catch (erro) {
+      await this.limparRestoDoRun(nome);
+      throw erro;
+    }
     try {
       const rede = redeDeQaDoProjeto(spec.workspaceDirName);
       const temCompartilhado = qa.servicos.some((x) => x.compartilhado === true);
-      if (temCompartilhado) await this.garantirRedeDeQa(rede);
+      if (temCompartilhado) await this.garantirRedeDeQa(rede, spec.projectId);
       for (const servico of qa.servicos) {
         if (servico.compartilhado === true) {
           await this.subirCompartilhado(spec, servico, rede);
@@ -661,15 +814,24 @@ export class DockerViaCli extends DockerPort {
       await this.remove(spec.workspaceDirName, alvo).catch(() => undefined);
       throw erro;
     }
-    return { containerId: criado.stdout.trim(), nome, jaEstavaDePe: false };
+    return { containerId: criado.stdout.trim(), nome, jaEstavaDePe: false, recriado: false };
   }
 
   /** Rede privada (`--internal`) do projeto, so para os servicos compartilhados. */
-  private async garantirRedeDeQa(rede: string): Promise<void> {
+  private async garantirRedeDeQa(rede: string, projectId: string): Promise<void> {
     const ja = await this.rodar(['network', 'inspect', rede], TIMEOUT_DE_CONTROLE_MS);
     if (ja.exitCode === 0) return;
     await this.executar(
-      ['network', 'create', '--internal', '--label', `${ROTULO_GERENCIADO}=true`, rede],
+      [
+        'network',
+        'create',
+        '--internal',
+        '--label',
+        `${ROTULO_GERENCIADO}=true`,
+        '--label',
+        `${ROTULO_PROJETO}=${projectId}`,
+        rede,
+      ],
       TIMEOUT_DE_CONTROLE_MS,
     );
   }
@@ -836,6 +998,12 @@ export class DockerViaCli extends DockerPort {
    * lista e a resposta.
    */
   private argsDeCriacao(spec: EspecificacaoDeContainer, nome: string): string[] {
+    const base = this.argsBase(spec, nome);
+    return ['run', '--label', `${ROTULO_SPEC_HASH}=${hashDaSpec(base)}`, ...base.slice(1)];
+  }
+
+  /** Os argumentos SEM o rótulo de hash: o hash é calculado sobre eles. */
+  private argsBase(spec: EspecificacaoDeContainer, nome: string): string[] {
     const qa = spec.qa ?? null;
     return [
       'run',
@@ -861,7 +1029,7 @@ export class DockerViaCli extends DockerPort {
         ? []
         : ['--label', `${ROTULO_PAPEL}=qa`, '--label', `${ROTULO_QA_INSTANCIA}=${qa.chave}`]),
       '--label',
-      `brabo.project.id=${spec.projectId}`,
+      `${ROTULO_PROJETO}=${spec.projectId}`,
       '--label',
       `brabo.project.slug=${spec.projectSlug}`,
       '--label',
@@ -908,6 +1076,10 @@ export class DockerViaCli extends DockerPort {
   }
 }
 
+function hashDaSpec(args: readonly string[]): string {
+  return createHash('sha256').update(args.join('\0')).digest('hex');
+}
+
 function nomeDe(workspaceDirName: string, alvo?: AlvoDeQa): string {
   return alvo === undefined
     ? nomeDoContainer(workspaceDirName)
@@ -947,7 +1119,7 @@ export function argsDeServicoDeQa(
     '--label',
     `${ROTULO_PAPEL}=qa`,
     '--label',
-    `brabo.project.id=${spec.projectId}`,
+    `${ROTULO_PROJETO}=${spec.projectId}`,
     ...(dono === null
       ? ['--label', `${ROTULO_QA_COMPARTILHADO}=1`, '--network-alias', servico.nome]
       : ['--label', `${ROTULO_QA_DONO}=${dono}`]),

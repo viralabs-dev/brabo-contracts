@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Breaking de consumo (AT-980, MINOR): o `start` do `docker-port` não religa mais container que nunca rodou (`created`) nem o de spec velha: recria (`rm --force` + `run`) e devolve `ContainerIniciado.recriado`. O `run` grava `brabo.spec.hash` (sha256 dos argumentos) e o `run` que falha remove o `Created` que deixou. A `DockerPort` ganha `recursosDoHost()` (portas publicadas de todo container `running`, só o número para os de terceiros, mais containers e redes `brabo.managed` por projeto) e `removerPorProjeto(projectId)` (remove por rótulo, containers e depois redes). A rede de QA ganha o rótulo `brabo.project.id`. `CHAMADAS_DE_CONTROLE_NO_START` vai de 6 para 9 (api e engine derivam o teto daí). Quem implementa `DockerPort` ou monta `ContainerIniciado` precisa dos campos novos.
+
 - Feature (AT-922): `docker-port` ganha `ProvaDeComposePort.provaDeCompose` (porta separada, só o broker implementa), o resultado `{ subiu, sondas, recusas?, origem }` e os limites como dado (`LIMITES_DA_PROVA_DE_COMPOSE`: 10 min, 4 GB, 1 por projeto). Mudança aditiva (MINOR); o runner não é afetado.
 
 - CI: repina o brabo-ci na release final `v1.4.0` (`5320046`), para a promoção `dev → main` de 09/11/2026 (a `main` só aceita release final).

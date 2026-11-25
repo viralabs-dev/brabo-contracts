@@ -583,7 +583,10 @@ só dar nome** (2026-09-27). A regra:
    chega no `container_start_result`.
 4. **Os tetos de quem espera o `start` contam o pior caso inteiro**: os dois
    `ps` de `resolver`, `image inspect`, `pull`, `run` e o `docker version` de
-   diagnóstico — seis chamadas de controle (`CHAMADAS_DE_CONTROLE_NO_START`).
+   diagnóstico — seis chamadas de controle; a AT-980 (RN-1050) somou o `inspect`
+   do hash, o `rm` da recriação e o `ps` + `rm` do resto do `run`: **nove**
+   (`CHAMADAS_DE_CONTROLE_NO_START`). Os números abaixo são os de antes, com
+   seis; api e engine recalculam ao subir a TAG.
    A api espera 10 + 6 × 30 + 5 = **195 s** (`TETO_DE_MUTACAO_MS`); o engine,
    no `RunnerRouter`, 6 × 30 + 5 = **185 s** no `start` e 4 × 30 + 5 =
    **125 s** no `stop`/`remove` (eram 60 s, menos que o `resolver` mais a
@@ -793,3 +796,10 @@ escreve na pasta do projeto, que é do uid do operador: `npm install` dava
 - **Onde:** `packages/contracts/docker-cli.json`, `packages/docker-port/src/docker-cli.ts` (`TIMEOUT_DE_CONTROLE_MS`, `CHAMADAS_DE_CONTROLE_NO_START`).
 - **Teste:** `packages/docker-port/src/docker-cli-json.spec.ts` (mutação provada: trocar o valor no JSON reprova).
 - **Origem:** AT-770, ADR 0270.
+
+### RN-1050 — O `start` nunca religa o que não serve, o `run` que falha não deixa resto, e o host se lê por rótulo {#rn-1050}
+
+- **Regra:** (1) o `start` com homônimo `created` (nunca rodou) ou parado com `brabo.spec.hash` diferente do da spec de agora (ou sem o rótulo) faz `rm --force` + `run` e devolve `recriado: true`; hash igual faz `docker start`, que preserva o cache do container. O hash é o sha256 dos argumentos de criação sem o próprio rótulo. (2) O `run` que falha remove o container gerenciado que deixou (`Created`, sem rede) e relança o erro do `run`. (3) `recursosDoHost()` é só leitura: lê um `ps --all` e um `inspect` (JSON, nunca o texto do `ps`) e devolve as portas publicadas por todo container `running` (de terceiro, só o número, `projectId: null`) e os containers e redes `brabo.managed` com `brabo.project.id`. (4) `removerPorProjeto(projectId)` remove por rótulo (`brabo.managed=true` + `brabo.project.id`) os containers (trabalho, QA e serviços, o compartilhado incluso) e depois as redes; `projectId` vazio é recusado. (5) A rede de QA ganha `brabo.project.id`; volumes não são criados pelo adaptador. Limite: processo do host fora do Docker na porta continua invisível; o `run` falha e o resto é limpo.
+- **Onde:** `packages/docker-port/src/docker-cli.ts` (`start`, `criar`, `limparRestoDoRun`, `mesmaSpec`, `recursosDoHost`, `removerPorProjeto`, `garantirRedeDeQa`), `packages/docker-port/src/docker-port.ts` (`ContainerIniciado.recriado`, `RecursosDoHost`, `ROTULO_PROJETO`, `ROTULO_SPEC_HASH`).
+- **Teste:** `packages/docker-port/src/docker-cli.spec.ts` (`DockerViaCli.start`, `recursosDoHost`, `removerPorProjeto`, `rede de QA`; mutação provada: com o `docker-cli.ts` antigo 16 casos reprovam).
+- **Origem:** AT-980 (EP-036), ADR 0002/0041 (sem classificar pelo texto do daemon; a porta ocupada se lê antes do `run`, pelo `recursosDoHost`).

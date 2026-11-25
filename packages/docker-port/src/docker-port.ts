@@ -95,6 +95,11 @@ export const PREFIXO_DO_NOME = 'brabo-';
 /** Prefixo do nome da instância de QA efêmera (ADR 0229): `brabo-qa-<workspace_dir_name>-<chave>`. */
 export const PREFIXO_DO_NOME_DE_QA = 'brabo-qa-';
 
+/** Em todo recurso do host (container, serviço e rede de QA): o projeto dono. */
+export const ROTULO_PROJETO = 'brabo.project.id';
+/** No container de trabalho: sha256 dos argumentos de criação. Hash diferente = spec velha = recria. */
+export const ROTULO_SPEC_HASH = 'brabo.spec.hash';
+
 /** Rótulo do PAPEL do container; só `qa` existe. Ausente = container de trabalho (como sempre). */
 export const ROTULO_PAPEL = 'brabo.papel';
 /** A chave (8 do taskId) da instância de QA, no rótulo do container de QA. */
@@ -441,6 +446,13 @@ export interface ContainerIniciado {
    * container" quando não subiu nada.
    */
   readonly jaEstavaDePe: boolean;
+  /**
+   * `true` quando o container foi CRIADO de novo nesta chamada porque o que
+   * existia não servia (nunca rodou, ou a spec mudou: rótulo `brabo.spec.hash`).
+   * `false` na primeira criação, no religar do que tem a mesma spec e no que
+   * já estava de pé.
+   */
+  readonly recriado: boolean;
 }
 
 /**
@@ -473,6 +485,40 @@ export interface PortaPublicada {
   readonly host: number;
   readonly container: number;
   readonly protocolo: string;
+}
+
+/** Porta publicada no host por QUALQUER container `running`; só o número sai para os de terceiros. */
+export interface PortaOcupada {
+  readonly host: number;
+  readonly ip: string;
+  readonly protocolo: string;
+  /** `null` quando o container não é gerenciado (terceiro). */
+  readonly projectId: string | null;
+}
+
+export interface ContainerGerenciado {
+  readonly projectId: string;
+  readonly papel: 'trabalho' | 'qa' | 'servico_qa';
+  readonly estado: EstadoDeContainer;
+  readonly nome: string;
+}
+
+export interface RedeGerenciada {
+  readonly projectId: string;
+  readonly nome: string;
+}
+
+/** O que o host tem, para escolher porta livre e reconciliar o que sobrou de projeto apagado. */
+export interface RecursosDoHost {
+  readonly portas: readonly PortaOcupada[];
+  /** Só `brabo.managed=true` com `brabo.project.id`. */
+  readonly containers: readonly ContainerGerenciado[];
+  readonly redes: readonly RedeGerenciada[];
+}
+
+export interface RemovidosPorProjeto {
+  readonly containers: readonly string[];
+  readonly redes: readonly string[];
 }
 
 export interface PedidoDeExec {
@@ -623,6 +669,22 @@ export abstract class DockerPort {
    * `comandoDoApp` é o `run.app.command` vigente, passado como argumento.
    */
   abstract reiniciarApp(workspaceDirName: string, comandoDoApp: string): Promise<ResultadoDoReinicio>;
+
+  /**
+   * Só leitura, sem parâmetro: portas publicadas por todo container `running`
+   * do daemon e os containers/redes `brabo.managed` com `brabo.project.id`.
+   * Nada vindo do chamador chega ao daemon.
+   */
+  abstract recursosDoHost(): Promise<RecursosDoHost>;
+
+  /**
+   * Remove TUDO o que é do projeto, achado por rótulo (`brabo.managed=true` +
+   * `brabo.project.id=<id>`): containers (trabalho, QA e serviços, inclusive o
+   * compartilhado) e depois as redes. É a saída para o projeto que já não
+   * existe na api. Quem prova que o projeto sumiu é o chamador; aqui só se toca
+   * em recurso gerenciado. Nada a remover é no-op.
+   */
+  abstract removerPorProjeto(projectId: string): Promise<RemovidosPorProjeto>;
 }
 
 /** `brabo-<workspace_dir_name>` — a única derivação do nome (ver RN-109). */
