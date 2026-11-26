@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Doc (AT-1011): as 10 refs empatadas de `packages/docs/business-rules/contracts.md` seguem o símbolo (`argsDeCriacao`, `iniciarQa`, `argsDeServicoDeQa` e outros).
+
 - Doc (AT-1011): as refs com número de linha de `packages/docs/business-rules/contracts.md` voltam a bater com o código, e a RN-1050 daqui vira RN-1502, porque o `brabo-ci` já tinha uma RN-1050 (a do ciclo de dependências, de 08/11; esta nasceu em 18/11). Só documentação; não muda código nem contrato.
 
 - Breaking de consumo (AT-980, MINOR): o `start` do `docker-port` não religa mais container que nunca rodou (`created`) nem o de spec velha: recria (`rm --force` + `run`) e devolve `ContainerIniciado.recriado`. O `run` grava `brabo.spec.hash` (sha256 dos argumentos) e o `run` que falha remove o `Created` que deixou. A `DockerPort` ganha `recursosDoHost()` (portas publicadas de todo container `running`, só o número para os de terceiros, mais containers e redes `brabo.managed` por projeto) e `removerPorProjeto(projectId)` (remove por rótulo, containers e depois redes). A rede de QA ganha o rótulo `brabo.project.id`. `CHAMADAS_DE_CONTROLE_NO_START` vai de 6 para 9 (api e engine derivam o teto daí). Quem implementa `DockerPort` ou monta `ContainerIniciado` precisa dos campos novos.
