@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Feature (AT-1015, MINOR, RN-1518): a spec de trabalho do `docker-port` ganha `servicos` (os não compartilhados do `run.qa.services`, mesma régua do `qa.servicos`) e `env` (variáveis de conexão, como `DATABASE_URL`, também aceitas na spec da instância de QA). Os serviços sobem em `--network container:<trabalho>` (o mesmo `localhost`), com dados em `tmpfs`; `stop`, `remove` e a recriação do trabalho os levam junto, e declarar serviço muda o `brabo.spec.hash`. Aditiva: sem os campos novos o `run` e o hash são os de antes.
+
 - Doc (AT-1011): as 10 refs empatadas de `packages/docs/business-rules/contracts.md` seguem o símbolo (`argsDeCriacao`, `iniciarQa`, `argsDeServicoDeQa` e outros).
 
 - Doc (AT-1011): as refs com número de linha de `packages/docs/business-rules/contracts.md` voltam a bater com o código, e a RN-1050 daqui vira RN-1502, porque o `brabo-ci` já tinha uma RN-1050 (a do ciclo de dependências, de 08/11; esta nasceu em 18/11). Só documentação; não muda código nem contrato.
