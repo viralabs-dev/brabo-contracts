@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Doc (AT-1028): as refs de `packages/docs/business-rules/contracts.md` para `docker-cli.ts`, `spec-de-container.ts`, `docker-port.ts` e arquivos da api/engine voltam a bater com as linhas da `dev`.
+
 - Feature (AT-1015, MINOR, RN-1518): a spec de trabalho do `docker-port` ganha `servicos` (os não compartilhados do `run.qa.services`, mesma régua do `qa.servicos`) e `env` (variáveis de conexão, como `DATABASE_URL`, também aceitas na spec da instância de QA). Os serviços sobem em `--network container:<trabalho>` (o mesmo `localhost`), com dados em `tmpfs`; `stop`, `remove` e a recriação do trabalho os levam junto, e declarar serviço muda o `brabo.spec.hash`. Aditiva: sem os campos novos o `run` e o hash são os de antes.
 
 - Doc (AT-1011): as 10 refs empatadas de `packages/docs/business-rules/contracts.md` seguem o símbolo (`argsDeCriacao`, `iniciarQa`, `argsDeServicoDeQa` e outros).
