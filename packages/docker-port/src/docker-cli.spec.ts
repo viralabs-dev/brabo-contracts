@@ -1055,6 +1055,97 @@ describe('DockerViaCli — spec ampliada (ADR 0228/0229)', () => {
   });
 });
 
+describe('DockerViaCli — serviços no container de trabalho e run.env (RN-1518)', () => {
+  const DIGEST = `postgres@sha256:${'b'.repeat(64)}`;
+  const NOME = 'brabo-exp002-f52be111';
+  const COM_BANCO: EspecificacaoDeContainer = {
+    ...SPEC,
+    env: { DATABASE_URL: 'postgres://teste:teste@127.0.0.1:5432/teste' },
+    servicos: [
+      { nome: 'db', imagem: DIGEST, usuario: '999:999', dados: ['/var/lib/postgresql/data'] },
+    ],
+  };
+  const runs = (chamadas: string[][]) => chamadas.filter((c) => c[0] === 'run');
+  const nomeDe = (a: string[]) => a[a.indexOf('--name') + 1];
+
+  it('serviço no localhost do trabalho (container:<trabalho>), --env no trabalho, dono pelo rótulo', async () => {
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida('') },
+      { quando: ['run'], entao: comSaida('id\n') },
+    ]);
+    await new DockerViaCli(rodar).start(COM_BANCO);
+    const [trabalho, servico] = runs(chamadas) as [string[], string[]];
+    expect(trabalho.join(' ')).toContain('--env DATABASE_URL=postgres://teste:teste@127.0.0.1:5432/teste');
+    expect(nomeDe(servico)).toBe(`${NOME}-db`);
+    const s = servico.join(' ');
+    expect(s).toContain(`--network container:${NOME}`);
+    expect(s).toContain(`--label brabo.qa.dono=${NOME}`);
+    expect(s).toContain('--cap-drop ALL');
+    expect(s).toContain('--tmpfs /var/lib/postgresql/data:uid=999,gid=999,mode=0700');
+    expect(s).not.toMatch(/--privileged|--cap-add|--publish| -p /);
+  });
+
+  it('sem serviço nem env o start é o de sempre: mesmo hash e nenhuma chamada a mais', async () => {
+    const a = duplo([{ quando: ['ps'], entao: comSaida('') }]);
+    await new DockerViaCli(a.rodar).start(SPEC);
+    const b = duplo([{ quando: ['ps'], entao: comSaida('') }]);
+    await new DockerViaCli(b.rodar).start({ ...SPEC, servicos: [] });
+    expect(b.chamadas).toEqual(a.chamadas);
+    expect(a.chamadas.filter((c) => c[0] === 'run')).toHaveLength(1);
+  });
+
+  it('declarar serviço muda o hash da spec (recria o trabalho parado)', async () => {
+    const hash = async (spec: EspecificacaoDeContainer) => {
+      const { rodar, chamadas } = duplo([{ quando: ['ps'], entao: comSaida('') }]);
+      await new DockerViaCli(rodar).start(spec);
+      return (runs(chamadas)[0] as string[])[2];
+    };
+    expect(await hash(COM_BANCO)).not.toBe(await hash(SPEC));
+  });
+
+  it('falha no serviço desfaz os serviços e o trabalho, e relança o erro', async () => {
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida(linhaDePs(`${NOME}-db`, 'running', 'svc1')) },
+    ]);
+    let n = 0;
+    const falha: RodarDocker = async (args, t) => {
+      if (args[0] === 'run' && ++n === 2) return { ...OK, exitCode: 125, stderr: 'boom' };
+      return rodar(args, t);
+    };
+    await expect(new DockerViaCli(falha).start(COM_BANCO)).rejects.toBeInstanceOf(
+      ComandoDeDockerFalhouError,
+    );
+    const rm = chamadas.filter((c) => c[0] === 'rm');
+    expect(rm.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('stop e remove do trabalho levam os serviços (rótulo de dono)', async () => {
+    for (const op of ['stop', 'remove'] as const) {
+      const { rodar, chamadas } = duplo([
+        { quando: ['ps'], entao: comSaida(linhaDePs(NOME, 'running')) },
+      ]);
+      await new DockerViaCli(rodar)[op]('exp002-f52be111');
+      expect(
+        chamadas.some((c) => c[0] === 'ps' && c.join(' ').includes(`label=brabo.qa.dono=${NOME}`)),
+      ).toBe(true);
+    }
+  });
+
+  it('trabalho parado com a MESMA spec é religado e os serviços são recriados', async () => {
+    const hashSpec = duplo([{ quando: ['ps'], entao: comSaida('') }]);
+    await new DockerViaCli(hashSpec.rodar).start(COM_BANCO);
+    const rotulo = (runs(hashSpec.chamadas)[0] as string[])[2]?.split('=')[1];
+    const { rodar, chamadas } = duplo([
+      { quando: ['ps'], entao: comSaida(linhaDePs(NOME, 'exited')) },
+      { quando: ['inspect'], entao: comSaida(JSON.stringify({ Config: { Labels: { 'brabo.spec.hash': rotulo } } })) },
+    ]);
+    const r = await new DockerViaCli(rodar).start(COM_BANCO);
+    expect(r.recriado).toBe(false);
+    expect(chamadas.some((c) => c[0] === 'start')).toBe(true);
+    expect(nomeDe(runs(chamadas)[0] as string[])).toBe(`${NOME}-db`);
+  });
+});
+
 describe('DockerViaCli.reiniciarApp (RN-1024)', () => {
   const rodando = { quando: ['ps'], entao: comSaida(linhaDePs('brabo-exp002-f52be111', 'running')) };
 

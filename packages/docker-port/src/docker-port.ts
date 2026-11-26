@@ -395,6 +395,20 @@ export interface EspecificacaoDeContainer {
    * (`brabo-qa-<workspace>-<chave>`, sem `--restart`, rótulo `brabo.papel=qa`).
    */
   readonly qa?: InstanciaDeQa | null;
+  /**
+   * AT-1015 (RN-1518): serviços NÃO compartilhados que sobem ao lado do
+   * container de TRABALHO, em `--network container:<trabalho>` (o mesmo
+   * `localhost`), com a mesma régua e o mesmo `docker run` dos de QA. Dados
+   * efêmeros; `stop`, `remove` e a recriação levam os serviços junto. Não vale
+   * com `qa` (a instância de QA já tem `qa.servicos`).
+   */
+  readonly servicos?: readonly ServicoDeQa[];
+  /**
+   * AT-1015 (RN-1518): variáveis de conexão (`DATABASE_URL`...) injetadas com
+   * `--env` no container de trabalho E na instância de QA. Mesma régua do
+   * `env` de serviço (até 20, `[A-Z_][A-Z0-9_]*`, valor de uma linha).
+   */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface PortaDoContainer {

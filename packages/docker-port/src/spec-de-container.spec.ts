@@ -280,4 +280,28 @@ describe('especificacaoValidada — app, rede e QA (ADR 0228/0229)', () => {
       /egress/,
     );
   });
+
+  it('AT-1015: servicos do trabalho (sem compartilhado, sem qa) e env de conexão', () => {
+    const svc = { nome: 'db', imagem: DIG };
+    const ok = especificacaoValidada({
+      ...EGRESS,
+      servicos: [{ ...svc, usuario: '999:999' }],
+      env: { DATABASE_URL: 'postgres://x@127.0.0.1:5432/x' },
+    });
+    expect(ok.servicos?.[0]).toMatchObject({ nome: 'db', usuario: '999:999' });
+    expect(ok.env).toEqual({ DATABASE_URL: 'postgres://x@127.0.0.1:5432/x' });
+    const vazio = especificacaoValidada({ ...EGRESS, servicos: [], env: null });
+    expect(vazio).not.toHaveProperty('servicos');
+    expect(vazio).not.toHaveProperty('env');
+    recusa({ servicos: [{ ...svc, imagem: 'postgres:16' }] }, 'servicos[0].imagem');
+    recusa({ servicos: [{ ...svc, compartilhado: true }] }, 'servicos[0].compartilhado');
+    recusa({ servicos: [svc, svc] }, 'servicos[1].nome');
+    recusa({ servicos: [{ ...svc, usuario: '0:0' }] }, 'servicos[0].usuario');
+    recusa({ servicos: Array(7).fill(svc) }, 'servicos');
+    recusa({ servicos: [svc], qa: { chave: 'abcd1234', servicos: [] } }, 'servicos');
+    recusa({ env: { 'a b': '1' } }, 'env');
+    recusa({ env: { A: 'x\ny' } }, 'env');
+    recusa({ env: Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`V${i}`, '1'])) }, 'env');
+    expect(especificacaoValidada({ ...EGRESS, qa: { chave: 'abcd1234', servicos: [] }, env: { A: '1' } }).env).toEqual({ A: '1' });
+  });
 });
