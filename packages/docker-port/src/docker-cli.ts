@@ -475,6 +475,8 @@ export class DockerViaCli extends DockerPort {
       // rede) e spec velha (portas, rede, comando, imagem) não se religa: recria.
       if (existente.estado !== 'created' && (await this.mesmaSpec(existente.id, spec, nome))) {
         await this.executar(['start', existente.id], TIMEOUT_DE_CONTROLE_MS);
+        // O netns do trabalho é novo: os serviços antigos (que o dividiam) ficaram órfãos.
+        await this.subirServicosDeTrabalho(spec, nome);
         return { containerId: existente.id, nome, jaEstavaDePe: false, recriado: false };
       }
       await this.executar(['rm', '--force', existente.id], TIMEOUT_DE_CONTROLE_MS);
@@ -489,12 +491,32 @@ export class DockerViaCli extends DockerPort {
     // O pull, quando há, acontece AQUI, nomeado e sob o teto de controle — e
     // não dentro do `run`, onde o estouro virava "código -1" sem nome (AT-234).
     await this.garantirImagem(spec.imagem);
+    for (const servico of spec.servicos ?? []) await this.garantirImagem(servico.imagem);
     try {
       const criado = await this.executar(this.argsDeCriacao(spec, nome), TIMEOUT_DE_CONTROLE_MS);
+      await this.subirServicosDeTrabalho(spec, nome);
       return { containerId: criado.stdout.trim(), nome, jaEstavaDePe: false, recriado: false };
     } catch (erro) {
+      await this.removerServicosDeQa(nome).catch(() => undefined);
       await this.limparRestoDoRun(nome);
       throw erro;
+    }
+  }
+
+  /**
+   * AT-1015 (RN-1518): os serviços do trabalho dividem o `localhost` dele
+   * (`--network container:<trabalho>`), como na instância de QA. Os antigos
+   * saem antes (dados em tmpfs: recriar recria o banco vazio). Sem serviço na
+   * spec, não faz chamada nenhuma.
+   */
+  private async subirServicosDeTrabalho(spec: EspecificacaoDeContainer, nome: string): Promise<void> {
+    if ((spec.servicos ?? []).length === 0) return;
+    await this.removerServicosDeQa(nome);
+    for (const servico of spec.servicos ?? []) {
+      await this.executar(
+        argsDeServicoDeQa(spec, servico, `${nome}-${servico.nome}`, `container:${nome}`, nome),
+        TIMEOUT_DE_CONTROLE_MS,
+      );
     }
   }
 
@@ -519,11 +541,14 @@ export class DockerViaCli extends DockerPort {
   private async mesmaSpec(id: string, spec: EspecificacaoDeContainer, nome: string): Promise<boolean> {
     const r = await this.executar(['inspect', '--format', '{{json .}}', id], TIMEOUT_DE_CONTROLE_MS);
     const rotulo = primeiroJson<InspecaoDeContainer>(r.stdout)?.Config?.Labels?.[ROTULO_SPEC_HASH];
-    return rotulo === hashDaSpec(this.argsBase(spec, nome));
+    return rotulo === this.hashDe(spec, nome);
   }
 
   async stop(workspaceDirName: string, alvo?: AlvoDeQa): Promise<void> {
     const existente = await this.resolver(nomeDe(workspaceDirName, alvo), alvo);
+    // AT-1015: os serviços do trabalho vão junto (o QA os remove no `remove`);
+    // depois do `resolver`, que recusa o homônimo não gerenciado antes de tocar em algo.
+    if (alvo === undefined) await this.removerServicosDeQa(nomeDoContainer(workspaceDirName));
     // Ausente é no-op: parar o que já não está lá É o estado desejado, e um
     // erro aqui faria toda limpeza precisar de um `try` do lado de fora.
     if (existente === null || existente.estado !== 'running') return;
@@ -537,6 +562,7 @@ export class DockerViaCli extends DockerPort {
     const nome = nomeDe(workspaceDirName, alvo);
     if (alvo !== undefined) await this.removerServicosDeQa(nome);
     const existente = await this.resolver(nome, alvo);
+    if (alvo === undefined) await this.removerServicosDeQa(nome);
     if (existente === null) return;
     // `--force` para o daemon parar antes de remover — evita a corrida entre
     // um `stop` nosso e um container que voltou a subir. O rótulo já foi
@@ -999,7 +1025,14 @@ export class DockerViaCli extends DockerPort {
    */
   private argsDeCriacao(spec: EspecificacaoDeContainer, nome: string): string[] {
     const base = this.argsBase(spec, nome);
-    return ['run', '--label', `${ROTULO_SPEC_HASH}=${hashDaSpec(base)}`, ...base.slice(1)];
+    return ['run', '--label', `${ROTULO_SPEC_HASH}=${this.hashDe(spec, nome)}`, ...base.slice(1)];
+  }
+
+  /** Os serviços do trabalho entram no hash (declarar um recria); sem eles o hash é o de sempre. */
+  private hashDe(spec: EspecificacaoDeContainer, nome: string): string {
+    const args = this.argsBase(spec, nome);
+    const servicos = spec.servicos ?? [];
+    return hashDaSpec(servicos.length === 0 ? args : [...args, JSON.stringify(servicos)]);
   }
 
   /** Os argumentos SEM o rótulo de hash: o hash é calculado sobre eles. */
@@ -1060,6 +1093,8 @@ export class DockerViaCli extends DockerPort {
       // a api mediu. `HOME` constante junto, porque uid sem entrada em
       // `/etc/passwd` recebe `HOME=/` e `npm` morre em `//.npm`.
       ...argsDeUsuario(spec.usuario),
+      // AT-1015 (RN-1518): variáveis de conexão (valores validados na fronteira).
+      ...Object.entries(spec.env ?? {}).flatMap(([k, v]) => ['--env', `${k}=${v}`]),
       // ADR 0228: portas SEMPRE no loopback (constante, sem opcao de interface).
       ...(spec.portas ?? []).flatMap((p) => ['-p', `127.0.0.1:${p.host}:${p.container}`]),
       ...(spec.dns ?? []).flatMap((ip) => ['--dns', ip]),

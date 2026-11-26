@@ -143,6 +143,10 @@ export interface EntradaDeEspecificacao {
   hostsExtras?: unknown;
   /** AT-612: `{chave, servicos}` — instância de QA. */
   qa?: unknown;
+  /** AT-1015: serviços (não compartilhados) do container de TRABALHO. */
+  servicos?: unknown;
+  /** AT-1015: `env` de conexão do trabalho e da instância de QA. */
+  env?: unknown;
 }
 
 /** As portas da instalação: publicar uma delas no loopback colidiria com o próprio Brabo. */
@@ -292,7 +296,15 @@ export function especificacaoValidada(
   const dns = dnsValidado(entrada.dns);
   const hostsExtras = hostsExtrasValidados(entrada.hostsExtras);
   const qa = instanciaDeQaValidada(entrada.qa);
+  const servicos = servicosDeTrabalhoValidados(entrada.servicos);
+  const env = envValidado(entrada.env, 'env');
 
+  if (qa !== null && servicos.length > 0) {
+    throw new EspecificacaoInvalidaError(
+      'servicos',
+      'a instância de QA declara os serviços em `qa.servicos`; `servicos` é só do container de trabalho',
+    );
+  }
   if (rede === 'none' && (portas.length > 0 || dns.length > 0 || hostsExtras.length > 0)) {
     throw new EspecificacaoInvalidaError(
       'rede',
@@ -344,6 +356,8 @@ export function especificacaoValidada(
     ...(dns.length === 0 ? {} : { dns }),
     ...(hostsExtras.length === 0 ? {} : { hostsExtras }),
     ...(qa === null ? {} : { qa }),
+    ...(servicos.length === 0 ? {} : { servicos }),
+    ...(Object.keys(env).length === 0 ? {} : { env }),
   };
 }
 
@@ -459,8 +473,36 @@ function usuarioDeServicoValidado(valor: unknown, campo: string): string | null 
   return valor as string;
 }
 
-function servicoDeQaValidado(item: unknown, i: number, nomes: Set<string>): ServicoDeQa {
-  const campo = `qa.servicos[${i}]`;
+/** Até 20 variáveis `[A-Z_][A-Z0-9_]*`, valor de uma linha (≤1024). Ausente/`null` = vazio. */
+function envValidado(valor: unknown, campo: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  if (valor === undefined || valor === null) return env;
+  if (typeof valor !== 'object' || Array.isArray(valor) || Object.keys(valor).length > 20) {
+    throw new EspecificacaoInvalidaError(campo, 'esperava objeto com até 20 chaves');
+  }
+  for (const [k, v] of Object.entries(valor)) {
+    if (!CHAVE_DE_ENV.test(k) || typeof v !== 'string' || v.length > 1024 || temQuebraOuNul(v)) {
+      throw new EspecificacaoInvalidaError(campo, `variável ${JSON.stringify(k)} inválida`);
+    }
+    env[k] = v;
+  }
+  return env;
+}
+
+/** AT-1015: os serviços do container de trabalho: a régua do QA, sem `compartilhado` (nunca há rede privada de projeto aqui). */
+export function servicosDeTrabalhoValidados(valor: unknown): ServicoDeQa[] {
+  const nomes = new Set<string>();
+  return listaOuVazia(valor, 'servicos', TETO_DE_SERVICOS_DE_QA).map((item, i) => {
+    const servico = servicoDeQaValidado(item, i, nomes, 'servicos');
+    if (servico.compartilhado === true) {
+      throw new EspecificacaoInvalidaError(`servicos[${i}].compartilhado`, 'serviço compartilhado é só da instância de QA');
+    }
+    return servico;
+  });
+}
+
+function servicoDeQaValidado(item: unknown, i: number, nomes: Set<string>, lista = 'qa.servicos'): ServicoDeQa {
+  const campo = `${lista}[${i}]`;
   const s = (item ?? {}) as Record<string, unknown>;
   if (typeof s.nome !== 'string' || !NOME_DE_SERVICO.test(s.nome) || nomes.has(s.nome)) {
     throw new EspecificacaoInvalidaError(`${campo}.nome`, `nome inválido ou repetido: ${descrever(s.nome)}`);
@@ -469,18 +511,7 @@ function servicoDeQaValidado(item: unknown, i: number, nomes: Set<string>): Serv
   if (typeof s.imagem !== 'string' || !referenciaDeImagemAceitavel(s.imagem) || !DIGEST.test(s.imagem)) {
     throw new EspecificacaoInvalidaError(`${campo}.imagem`, 'exige referência por digest (`nome@sha256:<64 hex>`), sem tag solta');
   }
-  const env: Record<string, string> = {};
-  if (s.env !== undefined && s.env !== null) {
-    if (typeof s.env !== 'object' || Array.isArray(s.env) || Object.keys(s.env).length > 20) {
-      throw new EspecificacaoInvalidaError(`${campo}.env`, 'esperava objeto com até 20 chaves');
-    }
-    for (const [k, v] of Object.entries(s.env)) {
-      if (!CHAVE_DE_ENV.test(k) || typeof v !== 'string' || v.length > 1024 || temQuebraOuNul(v)) {
-        throw new EspecificacaoInvalidaError(`${campo}.env`, `variável ${JSON.stringify(k)} inválida`);
-      }
-      env[k] = v;
-    }
-  }
+  const env = envValidado(s.env, `${campo}.env`);
   const dados = listaOuVazia(s.dados, `${campo}.dados`, 3).map((c) => {
     if (typeof c !== 'string' || !CAMINHO_DE_DADOS.test(c) || c.split('/').includes('..')) {
       throw new EspecificacaoInvalidaError(`${campo}.dados`, `caminho de tmpfs inválido: ${descrever(c)}`);
