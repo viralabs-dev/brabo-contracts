@@ -619,7 +619,7 @@ continua vindo da decisão do Arquiteto, e `pull` não é operação nova do bro
 
 - **Código:**
   `packages/docker-port/src/docker-cli.ts:250` (`PullExcedeuTetoError`),
-  `:812` (`garantirImagem`), `:138` (`CHAMADAS_DE_CONTROLE_NO_START`),
+  `:963` (`garantirImagem`), `:138` (`CHAMADAS_DE_CONTROLE_NO_START`),
   `:125` (`TIMEOUT_DE_CONTROLE_MS`);
   `apps/broker/src/servidor.ts:273` (`PullExcedeuTetoError`);
   `apps/api/src/infrastructure/http-clients/container-broker.client.ts:296` (`TETO_DE_MUTACAO_MS`),
