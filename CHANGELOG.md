@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `docker-port`: o serviço de dados nunca sobe como root nem fora de `tmpfs`: `usuario` e `dados` passam a ser recusados quando ausentes (`EspecificacaoInvalidaError`, também em `argsDeServicoDeQa`), sem afrouxar o `--cap-drop ALL` (RN-1539, AT-1015, ADR 0299). O tipo `ServicoDeQa` não muda.
+- `docker-port`: depois de subir os serviços, um `inspect` após 3 s confere que seguem de pé; quem saiu lança `ServicoDeDadosMorreuError` (`servico_de_dados_morreu`) com o código de saída e as 3 últimas linhas do log, valores do `env` mascarados (RN-1540). O `rm --force` dos serviços leva `-v`. Terceiro argumento opcional do `DockerViaCli` (`esperar`) para os testes.
+
 - Doc (AT-1028): as duas refs de `packages/docs/business-rules/contracts.md` para `engine_api_client.ex` (`opcoes_do_propose_action`) seguem o código depois da AT-1021 (só números de linha).
 
 - Doc (AT-1028): as refs de `packages/docs/business-rules/contracts.md` para `docker-cli.ts`, `spec-de-container.ts`, `docker-port.ts` e arquivos da api/engine voltam a bater com as linhas da `dev`.
