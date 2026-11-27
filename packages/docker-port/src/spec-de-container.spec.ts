@@ -254,7 +254,7 @@ describe('especificacaoValidada — app, rede e QA (ADR 0228/0229)', () => {
   });
 
   it('QA: exige digest, chave de 8, env em maiúsculas, sem app nem porta', () => {
-    const svc = { nome: 'db', imagem: DIG };
+    const svc = { nome: 'db', imagem: DIG, usuario: '70:70', dados: ['/var/lib/postgresql/data'] };
     const qa = (o: object) => ({ qa: { chave: 'abcd1234', servicos: [{ ...svc, ...o }] } });
     expect(
       especificacaoValidada({ ...EGRESS, ...qa({ env: { A_B: '1' } }) }).qa?.servicos[0]?.nome,
@@ -281,11 +281,27 @@ describe('especificacaoValidada — app, rede e QA (ADR 0228/0229)', () => {
     );
   });
 
+  it('RN-1539: serviço sem usuario ou sem dados é recusado, no trabalho e no QA', () => {
+    const base = { nome: 'db', imagem: DIG };
+    const completo = { ...base, usuario: '999:999', dados: ['/var/lib/postgresql/data'] };
+    for (const [s, campo] of [
+      [base, 'usuario'],
+      [{ ...base, dados: ['/d'] }, 'usuario'],
+      [{ ...base, usuario: '999:999' }, 'dados'],
+      [{ ...completo, dados: [] }, 'dados'],
+      [{ ...completo, usuario: null }, 'usuario'],
+    ] as const) {
+      recusa({ servicos: [s] }, `servicos[0].${campo}`);
+      recusa({ qa: { chave: 'abcd1234', servicos: [s] } }, `qa.servicos[0].${campo}`);
+    }
+    expect(especificacaoValidada({ ...EGRESS, servicos: [completo] }).servicos).toHaveLength(1);
+  });
+
   it('AT-1015: servicos do trabalho (sem compartilhado, sem qa) e env de conexão', () => {
-    const svc = { nome: 'db', imagem: DIG };
+    const svc = { nome: 'db', imagem: DIG, usuario: '999:999', dados: ['/var/lib/postgresql/data'] };
     const ok = especificacaoValidada({
       ...EGRESS,
-      servicos: [{ ...svc, usuario: '999:999' }],
+      servicos: [svc],
       env: { DATABASE_URL: 'postgres://x@127.0.0.1:5432/x' },
     });
     expect(ok.servicos?.[0]).toMatchObject({ nome: 'db', usuario: '999:999' });

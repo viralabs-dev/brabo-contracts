@@ -473,6 +473,21 @@ function usuarioDeServicoValidado(valor: unknown, campo: string): string | null 
   return valor as string;
 }
 
+/**
+ * RN-1539 (ADR 0299): serviço NUNCA sobe como root nem com o dado fora de
+ * `tmpfs`. Sob `--cap-drop ALL` o root do `postgres` não troca de usuário e
+ * sai; o volume anônimo sobrevive ao `rm`. Chamado na validação e de novo em
+ * `argsDeServicoDeQa`, para nenhum caminho montar o `run` sem os dois.
+ */
+export function exigirUsuarioEDados(servico: { usuario?: string; dados?: readonly unknown[] }, campo: string): void {
+  if (servico.usuario === undefined) {
+    throw new EspecificacaoInvalidaError(`${campo}.usuario`, 'obrigatório: o serviço nunca sobe como root (declare "<uid>:<gid>" da imagem)');
+  }
+  if ((servico.dados ?? []).length === 0) {
+    throw new EspecificacaoInvalidaError(`${campo}.dados`, 'obrigatório: o dado do serviço fica em tmpfs, nunca em volume anônimo');
+  }
+}
+
 /** Até 20 variáveis `[A-Z_][A-Z0-9_]*`, valor de uma linha (≤1024). Ausente/`null` = vazio. */
 function envValidado(valor: unknown, campo: string): Record<string, string> {
   const env: Record<string, string> = {};
@@ -519,6 +534,7 @@ function servicoDeQaValidado(item: unknown, i: number, nomes: Set<string>, lista
     return c;
   });
   const usuario = usuarioDeServicoValidado(s.usuario, `${campo}.usuario`);
+  exigirUsuarioEDados({ usuario: usuario ?? undefined, dados }, campo);
   const comando = listaOuVazia(s.comando, `${campo}.comando`, 16).map((a) => {
     if (typeof a !== 'string' || a.length === 0 || a.length > 200 || temQuebraOuNul(a)) {
       throw new EspecificacaoInvalidaError(`${campo}.comando`, `argumento inválido: ${descrever(a)}`);

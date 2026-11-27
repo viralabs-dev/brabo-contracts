@@ -72,7 +72,7 @@
 
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { TETO_DE_SERVICO_DE_QA } from './spec-de-container.ts';
+import { TETO_DE_SERVICO_DE_QA, exigirUsuarioEDados } from './spec-de-container.ts';
 import {
   ContainerAusenteError,
   ContainerNaoGerenciadoError,
@@ -196,6 +196,41 @@ export class ComandoDeDockerFalhouError extends Error {
     this.exitCode = exitCode;
     this.stderr = stderr;
   }
+}
+
+/**
+ * RN-1540 (AT-1015): o serviço subiu (`run` saiu 0) e não estava de pé depois da
+ * janela de conferência. `ultimasLinhas` são as 3 últimas do log, com os
+ * valores do `env` do serviço mascarados (`***`). `exitCode` é `null` quando o
+ * `inspect` não o devolveu (container sumiu).
+ */
+export class ServicoDeDadosMorreuError extends Error {
+  readonly code = 'servico_de_dados_morreu';
+  readonly servico: string;
+  readonly exitCode: number | null;
+  readonly ultimasLinhas: readonly string[];
+
+  constructor(servico: string, exitCode: number | null, ultimasLinhas: readonly string[]) {
+    super(
+      `o serviço ${servico} saiu logo depois de subir (código ${exitCode ?? 'desconhecido'}): ` +
+        `${ultimasLinhas.join(' | ') || '(sem saída no log)'}`,
+    );
+    this.name = 'ServicoDeDadosMorreuError';
+    this.servico = servico;
+    this.exitCode = exitCode;
+    this.ultimasLinhas = ultimasLinhas;
+  }
+}
+
+/** Janela entre o `run` do serviço e a conferência de que ele segue de pé. */
+export const JANELA_DE_CONFERENCIA_DE_SERVICO_MS = 3_000;
+
+const esperarDeVerdade = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Troca cada valor de `env` (maior primeiro) por `***`; o log do serviço pode ecoar a senha. */
+export function mascararValores(texto: string, env: Record<string, string> | undefined): string {
+  const valores = Object.values(env ?? {}).filter((v) => v.length > 0).sort((a, b) => b.length - a.length);
+  return valores.reduce((t, v) => t.split(v).join('***'), texto);
 }
 
 /**
@@ -370,7 +405,7 @@ interface InspecaoDeContainer {
   Name?: string;
   Config?: { Image?: string; Labels?: { [rotulo: string]: string } };
   Image?: string;
-  State?: { Status?: string; StartedAt?: string };
+  State?: { Status?: string; ExitCode?: number; StartedAt?: string };
   NetworkSettings?: {
     Ports?: { [chave: string]: Array<{ HostIp?: string; HostPort?: string }> | null };
   };
@@ -434,9 +469,15 @@ export const REINICIAR_APP =
 export class DockerViaCli extends DockerPort {
   private readonly rodar: RodarDocker;
   private readonly endereco: string;
+  private readonly esperar: (ms: number) => Promise<void>;
 
-  constructor(rodar: RodarDocker = rodarDockerDeVerdade, endereco: string = enderecoDoDaemon()) {
+  constructor(
+    rodar: RodarDocker = rodarDockerDeVerdade,
+    endereco: string = enderecoDoDaemon(),
+    esperar: (ms: number) => Promise<void> = esperarDeVerdade,
+  ) {
     super();
+    this.esperar = esperar;
     this.rodar = rodar;
     this.endereco = endereco;
   }
@@ -476,7 +517,14 @@ export class DockerViaCli extends DockerPort {
       if (existente.estado !== 'created' && (await this.mesmaSpec(existente.id, spec, nome))) {
         await this.executar(['start', existente.id], TIMEOUT_DE_CONTROLE_MS);
         // O netns do trabalho é novo: os serviços antigos (que o dividiam) ficaram órfãos.
-        await this.subirServicosDeTrabalho(spec, nome);
+        try {
+          await this.subirServicosDeTrabalho(spec, nome);
+        } catch (erro) {
+          // Sem resto: serviço fora e trabalho parado, para o próximo `start` religar de novo.
+          await this.removerServicosDeQa(nome).catch(() => undefined);
+          await this.rodar(['stop', existente.id], TIMEOUT_DE_CONTROLE_MS).catch(() => undefined);
+          throw erro;
+        }
         return { containerId: existente.id, nome, jaEstavaDePe: false, recriado: false };
       }
       await this.executar(['rm', '--force', existente.id], TIMEOUT_DE_CONTROLE_MS);
@@ -517,6 +565,31 @@ export class DockerViaCli extends DockerPort {
         argsDeServicoDeQa(spec, servico, `${nome}-${servico.nome}`, `container:${nome}`, nome),
         TIMEOUT_DE_CONTROLE_MS,
       );
+    }
+    await this.conferirServicosDePe(spec.servicos ?? [], nome);
+  }
+
+  /**
+   * RN-1540: `docker run --detach` sai 0 mesmo que o processo morra 1 s depois.
+   * Espera a janela e confere por `inspect` (um por serviço) que cada um segue
+   * `running`; quem saiu vira `ServicoDeDadosMorreuError` com a causa do log.
+   */
+  private async conferirServicosDePe(servicos: readonly ServicoDeQa[], dono: string): Promise<void> {
+    if (servicos.length === 0) return;
+    await this.esperar(JANELA_DE_CONFERENCIA_DE_SERVICO_MS);
+    for (const servico of servicos) {
+      const nome = `${dono}-${servico.nome}`;
+      const r = await this.rodar(['inspect', '--format', '{{json .}}', nome], TIMEOUT_DE_CONTROLE_MS);
+      const estado = primeiroJson<InspecaoDeContainer>(r.stdout)?.State;
+      // `inspect` com saída ilegível e código 0 não prova que morreu: segue (não inventa falha).
+      if (r.exitCode === 0 && (estado === undefined || estado.Status === 'running')) continue;
+      const log = await this.rodar(['logs', '--tail', '3', nome], TIMEOUT_DE_CONTROLE_MS);
+      const linhas = `${log.stdout}\n${log.stderr}`
+        .split('\n')
+        .map((l) => mascararValores(l.trim(), servico.env))
+        .filter((l) => l.length > 0)
+        .slice(-3);
+      throw new ServicoDeDadosMorreuError(servico.nome, r.exitCode === 0 ? (estado?.ExitCode ?? null) : null, linhas);
     }
   }
 
@@ -833,6 +906,7 @@ export class DockerViaCli extends DockerPort {
           );
         }
       }
+      await this.conferirServicosDePe(qa.servicos.filter((x) => x.compartilhado !== true), nome);
       if (temCompartilhado) {
         await this.executar(['network', 'connect', rede, nome], TIMEOUT_DE_CONTROLE_MS);
       }
@@ -887,7 +961,8 @@ export class DockerViaCli extends DockerPort {
       `label=${ROTULO_QA_DONO}=${nomeDoQa}`,
     ]);
     for (const s of servicos) {
-      if (s.ID) await this.executar(['rm', '--force', s.ID], TIMEOUT_DE_CONTROLE_MS);
+      // `-v`: serviço sem tmpfs não deixa volume anônimo para trás (RN-1539).
+      if (s.ID) await this.executar(['rm', '--force', '-v', s.ID], TIMEOUT_DE_CONTROLE_MS);
     }
   }
 
@@ -1144,6 +1219,7 @@ export function argsDeServicoDeQa(
   rede: string,
   dono: string | null,
 ): string[] {
+  exigirUsuarioEDados(servico, `servico ${servico.nome}`);
   return [
     'run',
     '--detach',
@@ -1170,11 +1246,9 @@ export function argsDeServicoDeQa(
     'ALL',
     '--tmpfs',
     '/tmp',
-    ...(servico.usuario === undefined ? [] : ['--user', servico.usuario]),
-    ...(servico.dados ?? []).flatMap((c) => [
-      '--tmpfs',
-      servico.usuario === undefined ? c : `${c}:${donoDoTmpfs(servico.usuario)}`,
-    ]),
+    '--user',
+    servico.usuario as string,
+    ...(servico.dados ?? []).flatMap((c) => ['--tmpfs', `${c}:${donoDoTmpfs(servico.usuario as string)}`]),
     ...Object.entries(servico.env ?? {}).flatMap(([k, v]) => ['--env', `${k}=${v}`]),
     servico.imagem,
     ...(servico.comando ?? []),
