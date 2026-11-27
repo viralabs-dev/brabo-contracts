@@ -403,7 +403,7 @@ interface RedeDeLista {
 interface InspecaoDeContainer {
   Id?: string;
   Name?: string;
-  Config?: { Image?: string; Labels?: { [rotulo: string]: string } };
+  Config?: { Image?: string; Env?: string[]; Labels?: { [rotulo: string]: string } };
   Image?: string;
   State?: { Status?: string; ExitCode?: number; StartedAt?: string };
   NetworkSettings?: {
@@ -432,24 +432,27 @@ function portasPublicadasDe(detalhe: InspecaoDeContainer): PortaPublicada[] {
  * interno grava o proprio PID em `.pid` e faz `exec` do comando, entao o PID
  * gravado e o do lider do grupo/sessao (via `setsid`) e `kill -- -<pid>` pega o
  * app inteiro. O subshell redireciona tudo, senao o `docker exec` do reinicio
- * esperaria o pipe fechar. `$1` e o comando do usuario, so posicional.
+ * esperaria o pipe fechar. O comando do usuario viaja por `BRABO_APP_CMD`
+ * (molde RN-947, AT-1037): nunca no argv, que o `tini` (PID 1) carregaria e que
+ * `pkill -f <comando>` acertaria, derrubando o container.
  */
 const LANCAR_O_APP =
-  's=$(command -v setsid); ($s /bin/sh -c \'echo $$ >/tmp/brabo-app.pid; exec /bin/sh -c "$1"\' brabo-app "$1" ' +
+  's=$(command -v setsid); ($s /bin/sh -c \'echo $$ >/tmp/brabo-app.pid; exec /bin/sh -c "$BRABO_APP_CMD"\' brabo-app ' +
   '>/tmp/brabo-app.log 2>&1; echo $? >/tmp/brabo-app.exit) >/dev/null 2>&1 </dev/null &';
 
 /**
  * AT-610 (ADR 0228): o supervisor do comando do app. CONSTANTE - o comando do
- * usuario entra so como `$1` (argumento posicional, molde RN-807), nunca
- * concatenado. O app sobe em background (`setsid` quando existe), com log e
+ * usuario entra so por `--env BRABO_APP_CMD` (AT-1037, RN-928), nunca no argv
+ * nem concatenado. O app sobe em background (`setsid` quando existe), com log e
  * codigo de saida em /tmp (efemeros, fora do bind-mount); o PID 1 segue sendo
  * o `sleep infinity` de sempre, entao app que morre fica morto.
  */
 export const SUPERVISOR_DO_APP = `${LANCAR_O_APP} exec sleep infinity`;
 
 /**
- * AT-617 (RN-1024, ADR 0264): reinicia SO o processo do app, no lugar. `$1` e o
- * comando (nunca concatenado). Mata o grupo gravado em `.pid` (TERM, e KILL
+ * AT-617 (RN-1024, ADR 0264): reinicia SO o processo do app, no lugar. O comando
+ * vem de `BRABO_APP_CMD` (o do container, ou o do `-e` do `exec`); `$1`, se
+ * vier, o sobrepoe (nunca concatenado). Mata o grupo gravado em `.pid` (TERM, e KILL
  * depois de 5 s), apaga `.exit`, relanca com o MESMO lancador do supervisor e
  * espera ate `BRABO_REINICIO_ESPERA` s (10 por padrao) por um `.exit`: se ele
  * apareceu, o app caiu e o script sai com 64 e `app-exit:<n>` no stdout. Sem
@@ -461,6 +464,7 @@ export const REINICIAR_APP =
   'while [ $i -lt 50 ] && kill -0 "$p" 2>/dev/null; do sleep 0.1; i=$((i+1)); done; ' +
   'kill -KILL -"$p" 2>/dev/null; fi; ' +
   'rm -f /tmp/brabo-app.pid /tmp/brabo-app.exit; ' +
+  'BRABO_APP_CMD="${1:-$BRABO_APP_CMD}"; export BRABO_APP_CMD; ' +
   `${LANCAR_O_APP} ` +
   'i=0; w="${BRABO_REINICIO_ESPERA:-10}"; ' +
   'while [ $i -lt "$w" ] && [ ! -f /tmp/brabo-app.exit ]; do sleep 1; i=$((i+1)); done; ' +
@@ -508,6 +512,7 @@ export class DockerViaCli extends DockerPort {
 
     if (existente !== null) {
       if (existente.estado === 'running') {
+        await this.religarServicosSeOTrabalhoReiniciou(nome, existente.id, spec);
         return { containerId: existente.id, nome, jaEstavaDePe: true, recriado: false };
       }
       // Parado com o MESMO nome e a MESMA spec: religa em vez de recriar, que
@@ -567,6 +572,75 @@ export class DockerViaCli extends DockerPort {
       );
     }
     await this.conferirServicosDePe(spec.servicos ?? [], nome);
+  }
+
+  /**
+   * AT-1037 (RN-1542): o trabalho que reiniciou (PID 1 morto, daemon
+   * reiniciado) ganha netns novo, e o serviço, que o dividia, fica preso ao
+   * antigo (`127.0.0.1:5432` recusa). Órfão = fora de `running` ou com
+   * `StartedAt` anterior ao do trabalho. Religa (com `spec`, recria pela spec;
+   * sem ela, `docker restart`, que resolve `container:<id>` de novo), confere
+   * 3 s como a subida (RN-1540) e relança o app declarado que morreu no boot.
+   * Devolve a linha de aviso ao agente, ou `null` se nada foi religado. Sem
+   * serviço, custa UMA chamada (`ps`).
+   */
+  private async religarServicosSeOTrabalhoReiniciou(
+    nome: string,
+    trabalhoId: string,
+    spec?: EspecificacaoDeContainer,
+  ): Promise<string | null> {
+    const lista = await this.listar([
+      `label=${ROTULO_GERENCIADO}=true`,
+      `label=${ROTULO_PAPEL}=qa`,
+      `label=${ROTULO_QA_DONO}=${nome}`,
+    ]);
+    const ids = lista.flatMap((l) => (l.ID ? [l.ID] : []));
+    if (ids.length === 0) return null;
+    const r = await this.rodar(['inspect', '--format', '{{json .}}', trabalhoId, ...ids], TIMEOUT_DE_CONTROLE_MS);
+    if (r.exitCode !== 0) return null; // detecção não inventa falha; o exec segue
+    const todos = r.stdout.split('\n').flatMap((l) => {
+      const i = primeiroJson<InspecaoDeContainer>(l.trim());
+      return i === null ? [] : [i];
+    });
+    const trabalho = todos.find((i) => i.Id === trabalhoId || i.Id?.startsWith(trabalhoId));
+    const desde = trabalho?.State?.StartedAt;
+    if (trabalho === undefined || desde === undefined) return null;
+    const servicos = todos.filter((i) => i !== trabalho);
+    const orfaos = servicos.filter(
+      (i) => i.State?.Status !== 'running' || (i.State?.StartedAt ?? '') < desde,
+    );
+    if (orfaos.length === 0) return null;
+    const nomeDe = (i: InspecaoDeContainer): string => (i.Name ?? '').replace(/^\//, '').slice(nome.length + 1);
+
+    if (spec !== undefined) {
+      await this.subirServicosDeTrabalho(spec, nome);
+    } else {
+      for (const o of orfaos) await this.rodar(['restart', o.Id ?? ''], TIMEOUT_DE_CONTROLE_MS);
+      await this.conferirServicosDePe(
+        servicos.map((i) => ({ nome: nomeDe(i), imagem: i.Config?.Image ?? '', env: envDoInspect(i.Config?.Env) })),
+        nome,
+      );
+    }
+
+    // O app declarado que morreu no boot sem banco: o `.exit` só existe se ele morreu.
+    const morto = await this.rodar(
+      ['exec', trabalhoId, '/bin/sh', '-c', 'test -f /tmp/brabo-app.exit'],
+      TIMEOUT_DE_CONTROLE_MS,
+    );
+    let appReiniciado = false;
+    if (morto.exitCode === 0) {
+      const re = await this.rodar(
+        ['exec', trabalhoId, '/bin/sh', '-c', REINICIAR_APP, 'brabo-restart'],
+        TIMEOUT_DO_REINICIO_MS,
+      );
+      appReiniciado = !re.timedOut && re.exitCode === 0;
+    }
+    return (
+      `[Brabo] O container de trabalho reiniciou às ${desde.slice(11, 16)} (UTC). ` +
+      `O banco (${servicos.map(nomeDe).join(', ')}) foi religado VAZIO, porque os dados ficam em memória: ` +
+      'rode as migrações e recrie os dados de teste.' +
+      (appReiniciado ? ' O app do projeto foi reiniciado.' : '')
+    );
   }
 
   /**
@@ -710,6 +784,9 @@ export class DockerViaCli extends DockerPort {
     if (existente === null || existente.estado !== 'running') {
       throw new ContainerAusenteError(nome);
     }
+    // AT-1037 (RN-1542): trabalho que reiniciou deixa o serviço no netns antigo.
+    const aviso =
+      alvo === undefined ? await this.religarServicosSeOTrabalhoReiniciou(nome, existente.id) : null;
 
     const timeoutMs = pedido.timeoutMs ?? TIMEOUT_DE_EXEC_PADRAO_MS;
     const maxBytes = pedido.maxBytes ?? TETO_DE_BYTES_PADRAO;
@@ -739,7 +816,7 @@ export class DockerViaCli extends DockerPort {
     // que "executou na máquina" e "executou no container" tenham a mesma forma
     // do outro lado (PR 1.6 escolhe entre os dois).
     const bruto = `${resultado.stdout}${resultado.stderr}`;
-    const output = truncar(bruto, maxBytes);
+    const output = (aviso === null ? '' : `${aviso}\n`) + truncar(bruto, maxBytes);
 
     if (resultado.timedOut) {
       // Matar o cliente não mata o comando: mata-se o grupo DENTRO do container.
@@ -760,7 +837,8 @@ export class DockerViaCli extends DockerPort {
       return { reiniciou: false, motivo: 'sem_container' };
     }
     const r = await this.rodar(
-      ['exec', existente.id, '/bin/sh', '-c', REINICIAR_APP, 'brabo-restart', comandoDoApp],
+      // `-e`, e não `$1`: o subshell do lançador herda o argv do `sh` e o comando ficaria nele.
+      ['exec', '-e', `BRABO_APP_CMD=${comandoDoApp}`, existente.id, '/bin/sh', '-c', REINICIAR_APP, 'brabo-restart'],
       TIMEOUT_DO_REINICIO_MS,
     );
     if (r.timedOut) return { reiniciou: false, motivo: 'tempo_esgotado' };
@@ -1170,6 +1248,11 @@ export class DockerViaCli extends DockerPort {
       ...argsDeUsuario(spec.usuario),
       // AT-1015 (RN-1518): variáveis de conexão (valores validados na fronteira).
       ...Object.entries(spec.env ?? {}).flatMap(([k, v]) => ['--env', `${k}=${v}`]),
+      // AT-1037 (RN-928): o comando do app depois do `spec.env`, para o `run.env`
+      // do usuário não o sobrescrever. Fora do argv, onde o `tini` o carregaria.
+      ...(spec.comandoDoApp === undefined || spec.comandoDoApp === null
+        ? []
+        : ['--env', `BRABO_APP_CMD=${spec.comandoDoApp}`]),
       // ADR 0228: portas SEMPRE no loopback (constante, sem opcao de interface).
       ...(spec.portas ?? []).flatMap((p) => ['-p', `127.0.0.1:${p.host}:${p.container}`]),
       ...(spec.dns ?? []).flatMap((ip) => ['--dns', ip]),
@@ -1181,9 +1264,19 @@ export class DockerViaCli extends DockerPort {
       // sobe o app em background e o PID 1 segue sendo o `sleep infinity`.
       ...(spec.comandoDoApp === undefined || spec.comandoDoApp === null
         ? ['sleep', 'infinity']
-        : ['/bin/sh', '-c', SUPERVISOR_DO_APP, 'brabo-app', spec.comandoDoApp]),
+        : ['/bin/sh', '-c', SUPERVISOR_DO_APP, 'brabo-app']),
     ];
   }
+}
+
+/** Só para mascarar o log: ignora `PATH` e valores curtos, que não são segredo e estragariam o texto. */
+function envDoInspect(env: readonly string[] | undefined): Record<string, string> {
+  const saida: Record<string, string> = {};
+  for (const par of env ?? []) {
+    const i = par.indexOf('=');
+    if (i > 0 && par.slice(0, i) !== 'PATH' && par.length - i - 1 >= 4) saida[par.slice(0, i)] = par.slice(i + 1);
+  }
+  return saida;
 }
 
 function hashDaSpec(args: readonly string[]): string {
