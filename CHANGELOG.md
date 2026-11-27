@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CI (AT-1029 F5): repina todos os `uses:` e `ci_ref` do `brabo-ci` em `e212b71` (`v1.6.0`). Novo `refs.yml` liga `refs-entre-repos` (refs `caminho:N` das RNs que cruzam repo) e `rn-unica` (RN duplicada entre repos), informativos e não exigidos. `refs-com-simbolo` não entra: o script não tem o prefixo de `packages/` (sai 2 sempre). Sem mudança de regra nem de contrato.
+
 - Doc (AT-1028): as refs de `packages/docs/business-rules/contracts.md` para `docker-cli.ts` (`argsDeCriacao`, `matarExecEstourado`, `iniciarQa`, `argsDeServicoDeQa`, `reiniciarApp`), `docker-cli.spec.ts` e o engine seguem o código depois da AT-1037 (só números de linha; sem mudança de regra).
 
 - `docker-port`: o comando do app declarado sai do argv do container de trabalho e viaja por `--env BRABO_APP_CMD` (depois do `spec.env`), no molde da RN-947: `pkill -f <comando>` deixa de acertar o PID 1 (`tini`) e derrubar o container (RN-928, RN-1024, AT-1037). O `REINICIAR_APP` aceita `$1` vazio. O hash da spec muda só para quem tem `comandoDoApp`.
