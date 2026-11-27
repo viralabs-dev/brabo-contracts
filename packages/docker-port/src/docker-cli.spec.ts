@@ -903,12 +903,14 @@ describe('DockerViaCli — spec ampliada (ADR 0228/0229)', () => {
     ]);
   });
 
-  it('comandoDoApp vai como ARGUMENTO do supervisor constante; aspas, ; e $() não escapam', async () => {
+  it('comandoDoApp vai por --env BRABO_APP_CMD (depois do spec.env), fora do argv; aspas, ; e $() não escapam', async () => {
     const comando = `echo "a'b"; $(rm -rf /) \`x\``;
-    const args = await rodarStart({ ...SPEC, comandoDoApp: comando });
+    const args = await rodarStart({ ...SPEC, comandoDoApp: comando, env: { BRABO_APP_CMD: 'do-usuario', A: '1' } });
     const i = args.indexOf('node:24-bookworm');
     expect(args.slice(i + 1, i + 4)).toEqual(['/bin/sh', '-c', SUPERVISOR_DO_APP]);
-    expect(args.slice(i + 4)).toEqual(['brabo-app', comando]);
+    expect(args.slice(i + 4)).toEqual(['brabo-app']);
+    expect(args.slice(i + 1).join(' ')).not.toContain("a'b");
+    expect(args.lastIndexOf(`BRABO_APP_CMD=${comando}`)).toBeGreaterThan(args.indexOf('BRABO_APP_CMD=do-usuario'));
     expect(SUPERVISOR_DO_APP).not.toContain(comando);
     expect(args).not.toContain('infinity');
   });
@@ -1242,13 +1244,15 @@ describe('serviço de dados conferido (RN-1539, RN-1540)', () => {
 describe('DockerViaCli.reiniciarApp (RN-1024)', () => {
   const rodando = { quando: ['ps'], entao: comSaida(linhaDePs('brabo-exp002-f52be111', 'running')) };
 
-  it('o comando viaja só como $1 do script constante, e nenhuma outra chamada é feita', async () => {
+  it('o comando viaja só por -e BRABO_APP_CMD (fora do argv), e nenhuma outra chamada é feita', async () => {
     const comando = `echo "a'b"; $(rm -rf /) \`x\``;
     const { rodar, chamadas } = duplo([rodando, { quando: ['exec'], entao: OK }]);
     const r = await new DockerViaCli(rodar).reiniciarApp('exp002-f52be111', comando);
     expect(r).toEqual({ reiniciou: true });
     const exec = chamadas.filter((c) => c[0] === 'exec');
-    expect(exec).toEqual([['exec', 'c0ffee', '/bin/sh', '-c', REINICIAR_APP, 'brabo-restart', comando]]);
+    expect(exec).toEqual([
+      ['exec', '-e', `BRABO_APP_CMD=${comando}`, 'c0ffee', '/bin/sh', '-c', REINICIAR_APP, 'brabo-restart'],
+    ]);
     expect(REINICIAR_APP).not.toContain(comando);
     expect(chamadas.some((c) => ['stop', 'rm', 'run', 'start'].includes(c[0] ?? ''))).toBe(false);
   });
@@ -1349,6 +1353,17 @@ describe('REINICIAR_APP em sh real (RN-1024)', () => {
     expect(vivo(teimoso)).toBe(false);
   }, 20_000);
 
+  it('sem $1: relança com o BRABO_APP_CMD do ambiente, que não aparece no argv do script', async () => {
+    const r = spawnSync('/bin/sh', ['-c', REINICIAR_APP, 'brabo-restart'], {
+      encoding: 'utf8',
+      env: { ...process.env, BRABO_REINICIO_ESPERA: '1', BRABO_APP_CMD: 'sleep 64' },
+    });
+    expect(r.status).toBe(0);
+    expect(vivo(lerPid())).toBe(true);
+    const ps = spawnSync('ps', ['-eo', 'args'], { encoding: 'utf8' }).stdout;
+    expect(ps.split('\n').filter((l) => l.startsWith('/bin/sh -c p=') && l.includes('sleep 64'))).toEqual([]);
+  });
+
   it('app que cai dentro da espera: sai 64 com app-exit, sem o log no stdout', () => {
     const r = rodarScript(REINICIAR_APP, 'echo SEGREDO=abc; exit 3');
     expect(r.status).toBe(64);
@@ -1357,7 +1372,10 @@ describe('REINICIAR_APP em sh real (RN-1024)', () => {
   });
 
   it('o supervisor também grava o .pid do app (grupo próprio)', async () => {
-    const fundo = spawn('/bin/sh', ['-c', SUPERVISOR_DO_APP, 'brabo-app', 'sleep 62'], { stdio: 'ignore' });
+    const fundo = spawn('/bin/sh', ['-c', SUPERVISOR_DO_APP, 'brabo-app'], {
+      stdio: 'ignore',
+      env: { ...process.env, BRABO_APP_CMD: 'sleep 62' },
+    });
     try {
       await esperar(400);
       const pid = lerPid();
@@ -1366,5 +1384,110 @@ describe('REINICIAR_APP em sh real (RN-1024)', () => {
     } finally {
       fundo.kill('SIGKILL');
     }
+  });
+});
+
+describe('religar os serviços quando o trabalho reiniciou (AT-1037, RN-1542)', () => {
+  const NOME = 'brabo-exp002-f52be111';
+  const SENHA = 'senha-secreta-123';
+  const T_VELHO = '2026-11-27T06:15:20.000000000Z';
+  const T_NOVO = '2026-11-27T06:22:08.000000000Z';
+  const insp = (id: string, nome: string, status: string, em: string, env: string[] = []) =>
+    JSON.stringify({ Id: id, Name: `/${nome}`, State: { Status: status, StartedAt: em }, Config: { Image: 'pg', Env: env } });
+  const cenario = (opcoes: { servicoEm: string; servicoStatus?: string; appMorto?: boolean; restart?: number }) => {
+    const chamadas: string[][] = [];
+    const rodar: RodarDocker = async (args) => {
+      chamadas.push([...args]);
+      const j = args.join(' ');
+      if (args[0] === 'ps' && j.includes('label=brabo.qa.dono=')) return comSaida(linhaDePs(`${NOME}-db`, 'running', 'svc1'));
+      if (args[0] === 'ps') return comSaida(linhaDePs(NOME, 'running', 'work1'));
+      if (args[0] === 'inspect' && args.includes('work1')) {
+        return comSaida(
+          [
+            insp('work1', NOME, 'running', T_NOVO),
+            insp('svc1', `${NOME}-db`, opcoes.servicoStatus ?? 'running', opcoes.servicoEm, [`POSTGRES_PASSWORD=${SENHA}`]),
+          ].join('\n'),
+        );
+      }
+      if (args[0] === 'inspect') return comSaida(JSON.stringify({ State: { Status: 'running' } }));
+      if (args[0] === 'restart') return { ...OK, exitCode: opcoes.restart ?? 0 };
+      if (args[0] === 'exec' && j.includes('test -f /tmp/brabo-app.exit')) return { ...OK, exitCode: opcoes.appMorto ? 0 : 1 };
+      if (args[0] === 'exec' && args.includes(REINICIAR_APP)) return OK;
+      if (args[0] === 'exec') return comSaida('saida\n');
+      return OK;
+    };
+    return { chamadas, docker: new DockerViaCli(rodar, undefined, SEM_ESPERA) };
+  };
+
+  it('serviço preso ao netns antigo: restart, confere 3 s, relança o app e avisa em UMA linha antes da saída', async () => {
+    const { chamadas, docker } = cenario({ servicoEm: T_VELHO, appMorto: true });
+    const r = await docker.exec('exp002-f52be111', { comando: 'true' });
+    expect(chamadas.filter((c) => c[0] === 'restart')).toEqual([['restart', 'svc1']]);
+    expect(chamadas.some((c) => c[0] === 'exec' && c.includes(REINICIAR_APP) && !c.includes('-e'))).toBe(true);
+    const [aviso, ...resto] = r.output.split('\n');
+    expect(aviso).toBe(
+      '[Brabo] O container de trabalho reiniciou às 06:22 (UTC). O banco (db) foi religado VAZIO, porque os dados ficam em memória: rode as migrações e recrie os dados de teste. O app do projeto foi reiniciado.',
+    );
+    expect(resto.join('\n')).toBe('saida\n');
+    expect(r.output).not.toContain(SENHA);
+  });
+
+  it('serviço parado também é religado; sem app morto a frase do app não entra', async () => {
+    const { chamadas, docker } = cenario({ servicoEm: T_NOVO, servicoStatus: 'exited' });
+    const r = await docker.exec('exp002-f52be111', { comando: 'true' });
+    expect(chamadas.some((c) => c[0] === 'restart')).toBe(true);
+    expect(r.output).not.toContain('O app do projeto');
+  });
+
+  it('serviços em dia: só o ps e o inspect de detecção, sem restart e sem aviso', async () => {
+    const { chamadas, docker } = cenario({ servicoEm: T_NOVO });
+    const r = await docker.exec('exp002-f52be111', { comando: 'true' });
+    expect(chamadas.some((c) => c[0] === 'restart')).toBe(false);
+    expect(r.output).toBe('saida\n');
+  });
+
+  it('sem serviço: uma chamada a mais (o ps do rótulo)', async () => {
+    const chamadas: string[][] = [];
+    const rodar: RodarDocker = async (args) => {
+      chamadas.push([...args]);
+      if (args[0] === 'ps' && !args.join(' ').includes('label=brabo.qa.dono=')) return comSaida(linhaDePs(NOME, 'running', 'work1'));
+      return OK;
+    };
+    await new DockerViaCli(rodar, undefined, SEM_ESPERA).exec('exp002-f52be111', { comando: 'true' });
+    expect(chamadas.filter((c) => c[0] === 'ps' && c.join(' ').includes('label=brabo.qa.dono=')).length).toBe(1);
+    expect(chamadas.filter((c) => c[0] === 'inspect').length).toBe(0);
+  });
+
+  it('serviço que não volta: ServicoDeDadosMorreuError, com o log mascarado', async () => {
+    const chamadas: string[][] = [];
+    const rodar: RodarDocker = async (args) => {
+      chamadas.push([...args]);
+      const j = args.join(' ');
+      if (args[0] === 'ps' && j.includes('label=brabo.qa.dono=')) return comSaida(linhaDePs(`${NOME}-db`, 'running', 'svc1'));
+      if (args[0] === 'ps') return comSaida(linhaDePs(NOME, 'running', 'work1'));
+      if (args[0] === 'inspect' && args.includes('work1'))
+        return comSaida([insp('work1', NOME, 'running', T_NOVO), insp('svc1', `${NOME}-db`, 'running', T_VELHO, [`P=${SENHA}`])].join('\n'));
+      if (args[0] === 'inspect') return comSaida(JSON.stringify({ State: { Status: 'exited', ExitCode: 1 } }));
+      if (args[0] === 'logs') return { ...OK, stderr: `falhou ${SENHA}\n` };
+      return OK;
+    };
+    const erro = await new DockerViaCli(rodar, undefined, SEM_ESPERA)
+      .exec('exp002-f52be111', { comando: 'true' })
+      .catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(ServicoDeDadosMorreuError);
+    expect((erro as ServicoDeDadosMorreuError).ultimasLinhas).toEqual(['falhou ***']);
+    expect(chamadas.some((c) => c[0] === 'exec' && c.includes('brabo-exec'))).toBe(false);
+  });
+
+  it('start sobre o container de pé com serviço órfão recria os serviços pela spec', async () => {
+    const { chamadas, docker } = cenario({ servicoEm: T_VELHO });
+    const spec: EspecificacaoDeContainer = {
+      ...SPEC,
+      servicos: [{ nome: 'db', imagem: `postgres@sha256:${'c'.repeat(64)}`, usuario: '999:999', dados: ['/d'] }],
+    };
+    const r = await docker.start(spec);
+    expect(r.jaEstavaDePe).toBe(true);
+    expect(chamadas.some((c) => c[0] === 'run')).toBe(true);
+    expect(chamadas.some((c) => c[0] === 'rm' && c.includes('-v'))).toBe(true);
   });
 });
