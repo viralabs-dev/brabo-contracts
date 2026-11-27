@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Doc (AT-1028): as refs de `packages/docs/business-rules/contracts.md` para `docker-cli.ts` (`argsDeCriacao`, `matarExecEstourado`, `iniciarQa`, `argsDeServicoDeQa`, `reiniciarApp`), `docker-cli.spec.ts` e o engine seguem o código depois da AT-1037 (só números de linha; sem mudança de regra).
+
 - `docker-port`: o comando do app declarado sai do argv do container de trabalho e viaja por `--env BRABO_APP_CMD` (depois do `spec.env`), no molde da RN-947: `pkill -f <comando>` deixa de acertar o PID 1 (`tini`) e derrubar o container (RN-928, RN-1024, AT-1037). O `REINICIAR_APP` aceita `$1` vazio. O hash da spec muda só para quem tem `comandoDoApp`.
 - `docker-port`: o `exec` e o `start` sobre o container de pé religam os serviços presos ao netns antigo depois de o trabalho reiniciar (`docker restart`, ou rm -v + run no `start`), conferem 3 s, relançam o app morto e põem uma linha de aviso no começo da saída do `exec`; falha lança `ServicoDeDadosMorreuError` (RN-1542, AT-1037). Sem mudança de assinatura (MINOR).
 
