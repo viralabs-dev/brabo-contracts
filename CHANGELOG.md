@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `docker-port`: o comando do app declarado sai do argv do container de trabalho e viaja por `--env BRABO_APP_CMD` (depois do `spec.env`), no molde da RN-947: `pkill -f <comando>` deixa de acertar o PID 1 (`tini`) e derrubar o container (RN-928, RN-1024, AT-1037). O `REINICIAR_APP` aceita `$1` vazio. O hash da spec muda só para quem tem `comandoDoApp`.
+- `docker-port`: o `exec` e o `start` sobre o container de pé religam os serviços presos ao netns antigo depois de o trabalho reiniciar (`docker restart`, ou rm -v + run no `start`), conferem 3 s, relançam o app morto e põem uma linha de aviso no começo da saída do `exec`; falha lança `ServicoDeDadosMorreuError` (RN-1542, AT-1037). Sem mudança de assinatura (MINOR).
+
 - `docker-port`: o serviço de dados nunca sobe como root nem fora de `tmpfs`: `usuario` e `dados` passam a ser recusados quando ausentes (`EspecificacaoInvalidaError`, também em `argsDeServicoDeQa`), sem afrouxar o `--cap-drop ALL` (RN-1539, AT-1015, ADR 0299). O tipo `ServicoDeQa` não muda.
 - `docker-port`: depois de subir os serviços, um `inspect` após 3 s confere que seguem de pé; quem saiu lança `ServicoDeDadosMorreuError` (`servico_de_dados_morreu`) com o código de saída e as 3 últimas linhas do log, valores do `env` mascarados (RN-1540). O `rm --force` dos serviços leva `-v`. Terceiro argumento opcional do `DockerViaCli` (`esperar`) para os testes.
 
