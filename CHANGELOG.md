@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- CI (AT-1029 F5): repina todos os `uses:` e `ci_ref` do `brabo-ci` em `e212b71` (`v1.6.0`). Novo `refs.yml` liga `refs-entre-repos` (refs `caminho:N` das RNs que cruzam repo) e `rn-unica` (RN duplicada entre repos), informativos e não exigidos. `refs-com-simbolo` não entra: o script não tem o prefixo de `packages/` (sai 2 sempre). Sem mudança de regra nem de contrato.
+- CI (AT-1039 F2): repina todos os `uses:` e `ci_ref` do `brabo-ci` em `dfd333f` (`v1.7.0`). O `refs.yml` liga os quatro reutilizáveis de refs e RN: `refs-com-simbolo` (refs `caminho:N` internas, com `packages/` como raiz do próprio repo), `refs-entre-repos` (refs para outros repos), `rn-unica` (RN duplicada entre repos) e `indice-de-rn` (índice e peso das páginas), todos informativos e não exigidos. Reancora a ref de `contracts.md:694` para `AcoesDoContainer.tsx` (`:74` e `:189`, conferido pelo `refs-entre-repos --escrever`). Sem mudança de regra nem de contrato.
 
 - Doc (AT-1028): as refs de `packages/docs/business-rules/contracts.md` para `docker-cli.ts` (`argsDeCriacao`, `matarExecEstourado`, `iniciarQa`, `argsDeServicoDeQa`, `reiniciarApp`), `docker-cli.spec.ts` e o engine seguem o código depois da AT-1037 (só números de linha; sem mudança de regra).
 
