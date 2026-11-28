@@ -1,7 +1,6 @@
 name: refs
 
-# Refs entre repos e RN única, pelos reutilizáveis do brabo-ci (AT-1029 F5). Não são check obrigatório.
-# refs-com-simbolo fica de fora: o script não conhece o prefixo de packages/ deste repo (sai 2 sempre).
+# Refs entre repos, RN única, refs com símbolo e índice de RN, pelos reutilizáveis do brabo-ci (AT-1029 F5, AT-1039). Não são check obrigatório.
 run-name: "refs ← #${{ github.event.pull_request.number }} (${{ github.head_ref }})"
 
 on:
@@ -12,11 +11,19 @@ permissions:
   contents: read
 
 jobs:
+  refs-com-simbolo:
+    uses: viralabs-dev/brabo-ci/.github/workflows/refs-com-simbolo.yml@dfd333f49dea28cc73f6268b328ee1208de53b92  # v1.7.0
+    with:
+      ci_ref: dfd333f49dea28cc73f6268b328ee1208de53b92  # v1.7.0
   refs-entre-repos:
-    uses: viralabs-dev/brabo-ci/.github/workflows/refs-entre-repos.yml@e212b715d669c0388ce3bb9526278f1820f094c1  # v1.6.0
+    uses: viralabs-dev/brabo-ci/.github/workflows/refs-entre-repos.yml@dfd333f49dea28cc73f6268b328ee1208de53b92  # v1.7.0
     with:
-      ci_ref: e212b715d669c0388ce3bb9526278f1820f094c1  # v1.6.0
+      ci_ref: dfd333f49dea28cc73f6268b328ee1208de53b92  # v1.7.0
   rn-unica:
-    uses: viralabs-dev/brabo-ci/.github/workflows/rn-unica.yml@e212b715d669c0388ce3bb9526278f1820f094c1  # v1.6.0
+    uses: viralabs-dev/brabo-ci/.github/workflows/rn-unica.yml@dfd333f49dea28cc73f6268b328ee1208de53b92  # v1.7.0
     with:
-      ci_ref: e212b715d669c0388ce3bb9526278f1820f094c1  # v1.6.0
+      ci_ref: dfd333f49dea28cc73f6268b328ee1208de53b92  # v1.7.0
+  indice-de-rn:
+    uses: viralabs-dev/brabo-ci/.github/workflows/indice-de-rn.yml@dfd333f49dea28cc73f6268b328ee1208de53b92  # v1.7.0
+    with:
+      ci_ref: dfd333f49dea28cc73f6268b328ee1208de53b92  # v1.7.0
